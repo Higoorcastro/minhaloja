@@ -13,6 +13,7 @@ from models import db, SuperadminUsuario, Plano, Tenant, TenantUsuario
 from auth import require_superadmin
 
 # Carrega var de ambiente
+import traceback
 load_dotenv()
 
 app = Flask(__name__)
@@ -49,6 +50,20 @@ def verify_pw(plain, stored_hash):
     if secrets.compare_digest(legacy, stored_hash):
         return True, 'migrate'
     return False
+
+@app.errorhandler(Exception)
+def handle_exception(e):
+    """Global error handler to return JSON instead of HTML on error."""
+    from werkzeug.exceptions import HTTPException
+    if isinstance(e, HTTPException):
+        return e
+    tb = traceback.format_exc()
+    print(f"!!! Error detected in Superadmin:\n{tb}")
+    return jsonify({
+        'ok': False,
+        'error': str(e),
+        'traceback': tb if os.getenv('FLASK_ENV') == 'development' or True else None
+    }), 500
 
 @app.after_request
 def add_security_headers(resp):
@@ -96,7 +111,7 @@ def api_login():
     if not login or not senha or len(login) > 100:
         return jsonify({'ok': False, 'message': 'Credenciais inválidas'}), 400
 
-    user = SuperadminUsuario.query.filter_by(login=login, ativo=True).first()
+    user = SuperadminUsuario.query.filter_by(login=login, ativo=1).first()
     if not user:
         return jsonify({'ok': False, 'message': 'Login ou senha incorretos'}), 401
 
@@ -178,7 +193,7 @@ def api_plano_create():
         preco_mensal=d.get('preco_mensal', 0),
         max_usuarios=d.get('max_usuarios', 5),
         modulos=d.get('modulos', 'dashboard,pdv,vendas,produtos,clientes'),
-        ativo=d.get('ativo', True)
+        ativo=d.get('ativo', 1)
     )
     db.session.add(novo)
     db.session.commit()
@@ -192,7 +207,7 @@ def api_plano_update_delete(pid):
         return jsonify({'ok': False, 'message': 'Plano não encontrado'}), 404
         
     if request.method == 'DELETE':
-        p.ativo = False
+        p.ativo = 0
         db.session.commit()
         return jsonify({'ok': True})
         
@@ -321,7 +336,7 @@ def api_tenant_user_create():
         login=d['login'].strip(),
         senha_hash=hash_pw(d['senha']),
         papel=d.get('papel', 'operador'),
-        ativo=d.get('ativo', True)
+        ativo=d.get('ativo', 1)
     )
     db.session.add(novo)
     db.session.commit()
@@ -335,7 +350,7 @@ def api_tenant_user_update(uid):
         return jsonify({'ok': False, 'message': 'Usuário não encontrado'}), 404
         
     if request.method == 'DELETE':
-        u.ativo = False
+        u.ativo = 0
         db.session.commit()
         return jsonify({'ok': True})
         
@@ -358,7 +373,11 @@ def init_db():
             db.session.add(admin)
             db.session.commit()
 
-init_db()
+# Inicialização opcional; se falhar (ex: DB não pronto), o Gunicorn prossegue.
+try:
+    init_db()
+except Exception as e:
+    print(f"!!! Superadmin init_db warning: {e}")
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5679))

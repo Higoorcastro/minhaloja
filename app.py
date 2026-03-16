@@ -1186,19 +1186,22 @@ def rel_estoque():
     return jsonify({'produtos':rows_to_list(rows),'valor_total_estoque':total_val,'produtos_estoque_baixo':[dict(r) for r in rows if r['estoque']<=r['estoque_minimo']]})
 
 # ══════════════════════════════════════════════════════════════════════════
-# Inicialização do Banco (Apenas se rodar o arquivo diretamente ou sob demanda)
+# Inicialização do Banco (Gunicorn-compatible)
 # ══════════════════════════════════════════════════════════════════════════
-# Para evitar travamentos no Gunicorn durante o import, pulamos a inicialização 
-# automática no topo do arquivo. Se precisar forçar a criação das tabelas, 
-# rode o comando manual: python app.py init
+# Rodamos uma tentativa de inicialização no topo; se o banco estiver indisponível
+# ou demorar, o app apenas loga o aviso e continua para não travar o worker boot.
 # ══════════════════════════════════════════════════════════════════════════
+try:
+    init_db()
+except Exception as e:
+    print(f"!!! Warning: Async init_db failed on startup: {e}")
 
 if __name__ == '__main__':
     if len(sys.argv) > 1 and sys.argv[1] == 'init':
         print("🛠️ Inicializando Banco de Dados...")
         init_db()
         sys.exit(0)
-        
+    
     port = int(os.environ.get('PORT', 5678))
     print(f"🚀 GestãoLoja em http://localhost:{port}")
     # Tenta rodar init_db uma vez antes de subir o dev server

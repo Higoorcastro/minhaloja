@@ -16,7 +16,7 @@ class Plano(db.Model):
     preco_mensal = db.Column(db.Numeric(10, 2), default=0)
     max_usuarios = db.Column(db.Integer, default=5)
     modulos = db.Column(db.Text, default='dashboard,pdv,vendas,produtos,clientes')
-    ativo = db.Column(db.Boolean, default=True)
+    ativo = db.Column(db.Integer, default=1)
     criado_em = db.Column(db.DateTime, default=datetime.utcnow)
     
     tenants = db.relationship('Tenant', backref='plano', lazy='dynamic')
@@ -44,7 +44,7 @@ class TenantUsuario(db.Model):
     login = db.Column(db.String(100), nullable=False)
     senha_hash = db.Column(db.String(255), nullable=False)
     papel = db.Column(db.String(50), default='operador') # admin, operador
-    ativo = db.Column(db.Boolean, default=True)
+    ativo = db.Column(db.Integer, default=1)
     criado_em = db.Column(db.DateTime, default=datetime.utcnow)
     
     __table_args__ = (db.UniqueConstraint('tenant_id', 'login', name='_tenant_login_uc'),)
@@ -55,5 +55,5 @@ class SuperadminUsuario(db.Model):
     nome = db.Column(db.String(255), nullable=False)
     login = db.Column(db.String(100), nullable=False, unique=True)
     senha_hash = db.Column(db.String(255), nullable=False)
-    ativo = db.Column(db.Boolean, default=True)
+    ativo = db.Column(db.Integer, default=1)
     criado_em = db.Column(db.DateTime, default=datetime.utcnow)
