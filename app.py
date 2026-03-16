@@ -26,7 +26,7 @@ def data_path(filename):
         base = os.path.dirname(os.path.abspath(__file__))
     return os.path.join(base, filename)
 
-DB_URL = os.getenv('DATABASE_URL', 'postgresql://postgres:postgrespassword@localhost:5432/superadmin_db')
+DB_URL = os.getenv('DB_URL', 'postgresql://postgres:hzqegUOcjhT1oqw0Gxfn4F3oQh1u1JdJ@localhost:5432/minhaloja_db')
 
 app = Flask(__name__,
             template_folder=resource_path('templates'),
