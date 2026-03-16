@@ -433,65 +433,34 @@ def login_page():
 @app.route('/api/auth/login', methods=['POST'])
 @limiter.limit('10 per minute')
 def api_login():
-    import sys
-    sys.stderr.write("DEBUG LOGIN: Start\n")
-    sys.stderr.flush()
-    try:
-        d = request.json or {}
-        sys.stderr.write(f"DEBUG LOGIN: JSON loaded: {bool(d)}\n")
-        sys.stderr.flush()
-        
-        login = (d.get('login') or '').strip()
-        senha = d.get('senha') or ''
-        
-        sys.stderr.write("DEBUG LOGIN: Validating credentials length\n")
-        sys.stderr.flush()
-        # Validação mínima no backend (não confiar no front)
-        if not login or not senha or len(login) > 100 or len(senha) > 200:
-            return jsonify({'ok': False, 'message': 'Credenciais inválidas'}), 400
-            
-        sys.stderr.write("DEBUG LOGIN: Getting DB connection\n")
-        sys.stderr.flush()
-        db = get_db()
-    
-        sys.stderr.write("DEBUG LOGIN: Executing user query\n")
-        sys.stderr.flush()
-        user = db.execute(
-            "SELECT * FROM tenant_usuarios WHERE login=? AND ativo=1",
-            (login,)).fetchone()
-    
-        sys.stderr.write(f"DEBUG LOGIN: User found: {bool(user)}\n")
-        sys.stderr.flush()
-        if not user:
-            return jsonify({'ok': False, 'message': 'Login ou senha incorretos'}), 401
-    
-        sys.stderr.write("DEBUG LOGIN: Verifying password\n")
-        sys.stderr.flush()
-        result = verify_pw(senha, user['senha_hash'])
-        
-        sys.stderr.write(f"DEBUG LOGIN: Password verify result: {result}\n")
-        sys.stderr.flush()
-        if not result:
-            return jsonify({'ok': False, 'message': 'Login ou senha incorretos'}), 401
-    
-        # Migração transparente de SHA-256 para bcrypt
-        if isinstance(result, tuple) and result[1] == 'migrate':
-            sys.stderr.write("DEBUG LOGIN: Migrating password\n")
-            sys.stderr.flush()
-            db.execute("UPDATE tenant_usuarios SET senha_hash=? WHERE id=?",
-                       (hash_pw(senha), user['id']))
-            db.commit()
-    
-        sys.stderr.write("DEBUG LOGIN: Checking tenant status\n")
-        sys.stderr.flush()
-        tenant = db.execute("SELECT status FROM tenants WHERE id=?", (user['tenant_id'],)).fetchone()
-        if not tenant or tenant['status'] != 'ATIVO':
-            return jsonify({'ok': False, 'message': 'Loja bloqueada. Contate o administrador.'}), 403
-    except Exception as e:
-        sys.stderr.write(f"DEBUG LOGIN ERROR: {str(e)}\n")
-        sys.stderr.write(traceback.format_exc())
-        sys.stderr.flush()
-        raise e
+    d = request.json or {}
+    login = (d.get('login') or '').strip()
+    senha = d.get('senha') or ''
+    # Validação mínima no backend (não confiar no front)
+    if not login or not senha or len(login) > 100 or len(senha) > 200:
+        return jsonify({'ok': False, 'message': 'Credenciais inválidas'}), 400
+    db = get_db()
+
+    user = db.execute(
+        "SELECT * FROM tenant_usuarios WHERE login=? AND ativo=True",
+        (login,)).fetchone()
+
+    if not user:
+        return jsonify({'ok': False, 'message': 'Login ou senha incorretos'}), 401
+
+    result = verify_pw(senha, user['senha_hash'])
+    if not result:
+        return jsonify({'ok': False, 'message': 'Login ou senha incorretos'}), 401
+
+    # Migração transparente de SHA-256 para bcrypt
+    if isinstance(result, tuple) and result[1] == 'migrate':
+        db.execute("UPDATE tenant_usuarios SET senha_hash=? WHERE id=?",
+                   (hash_pw(senha), user['id']))
+        db.commit()
+
+    tenant = db.execute("SELECT status FROM tenants WHERE id=?", (user['tenant_id'],)).fetchone()
+    if not tenant or tenant['status'] != 'ATIVO':
+        return jsonify({'ok': False, 'message': 'Loja bloqueada. Contate o administrador.'}), 403
 
     # Carrega permissões reais: admin tem tudo, operador tem apenas o que foi configurado
     if user['papel'] == 'admin':
@@ -564,7 +533,7 @@ def api_plano_info():
                COUNT(tu.id) as total_usuarios
         FROM tenants t
         JOIN planos p ON p.id = t.plano_id
-        LEFT JOIN tenant_usuarios tu ON tu.tenant_id = t.id AND tu.ativo = 1
+        LEFT JOIN tenant_usuarios tu ON tu.tenant_id = t.id AND tu.ativo = True
         WHERE t.id = ?
         GROUP BY p.max_usuarios, p.modulos
     """, (tid,)).fetchone()
@@ -602,7 +571,7 @@ def _get_plano_info(db, tid):
                COUNT(tu.id) as total_usuarios
         FROM tenants t
         JOIN planos p ON p.id = t.plano_id
-        LEFT JOIN tenant_usuarios tu ON tu.tenant_id = t.id AND tu.ativo = 1
+        LEFT JOIN tenant_usuarios tu ON tu.tenant_id = t.id AND tu.ativo = True
         WHERE t.id = ?
         GROUP BY p.max_usuarios, p.modulos
     """, (tid,)).fetchone()
@@ -659,14 +628,14 @@ def api_usuario_update(uid):
     d = request.json or {}
     tid = session['tenant_id']
 
-    admins = db.execute("SELECT COUNT(*) as c FROM tenant_usuarios WHERE tenant_id=? AND papel='admin' AND ativo=1", (tid,)).fetchone()['c']
+    admins = db.execute("SELECT COUNT(*) as c FROM tenant_usuarios WHERE tenant_id=? AND papel='admin' AND ativo=True", (tid,)).fetchone()['c']
     target = db.execute("SELECT papel FROM tenant_usuarios WHERE tenant_id=? AND id=?", (tid, uid)).fetchone()
     if not target:
         return jsonify({'ok': False, 'message': 'Usuário não encontrado'}), 404
     if target['papel'] == 'admin' and d.get('papel') != 'admin' and admins <= 1:
         return jsonify({'ok': False, 'message': 'Não é possível remover o último administrador da loja'}), 400
 
-    ativo = 1 if str(d.get('ativo', 1)) in ['1', 'True', 'true'] else 0
+    ativo = True if str(d.get('ativo', True)) in ['1', 'True', 'true'] else False
     papel = d.get('papel', 'operador')
     _, modulos_plano, _ = _get_plano_info(db, tid)
     perms_str = _validar_permissoes(d.get('permissoes', []), modulos_plano, papel)
@@ -697,7 +666,7 @@ def api_usuario_delete(uid):
         return jsonify({'ok': False, 'message': 'Não pode excluir o próprio usuário'}), 400
     db = get_db()
     tid = session['tenant_id']
-    admins = db.execute("SELECT COUNT(*) as c FROM tenant_usuarios WHERE tenant_id=? AND papel='admin' AND ativo=1", (tid,)).fetchone()['c']
+    admins = db.execute("SELECT COUNT(*) as c FROM tenant_usuarios WHERE tenant_id=? AND papel='admin' AND ativo=True", (tid,)).fetchone()['c']
     target = db.execute("SELECT papel FROM tenant_usuarios WHERE tenant_id=? AND id=?", (tid, uid)).fetchone()
     if target and target['papel'] == 'admin' and admins <= 1:
         return jsonify({'ok': False, 'message': 'Não é possível remover o último administrador da loja'}), 400
@@ -723,7 +692,7 @@ def api_dashboard():
     os_ab   = db.execute("SELECT COUNT(*) as c FROM ordens_servico WHERE tenant_id=? AND status NOT IN ('CONCLUIDA','CANCELADA')", (tid,)).fetchone()['c']
     os_mes  = db.execute("SELECT COALESCE(SUM(total),0) as t FROM ordens_servico WHERE tenant_id=? AND DATE(criado_em)>=DATE(?) AND status='CONCLUIDA'", (tid, mes_ini)).fetchone()['t']
     desp    = db.execute("SELECT COALESCE(SUM(valor),0) as t FROM despesas WHERE tenant_id=? AND DATE(data)>=DATE(?)", (tid, mes_ini)).fetchone()['t']
-    prod_bx = db.execute("SELECT COUNT(*) as c FROM produtos WHERE tenant_id=? AND estoque<=estoque_minimo AND ativo=1", (tid,)).fetchone()['c']
+    prod_bx = db.execute("SELECT COUNT(*) as c FROM produtos WHERE tenant_id=? AND estoque<=estoque_minimo AND ativo=True", (tid,)).fetchone()['c']
     receita = v_mes + os_mes
     v7d = rows_to_list(db.execute(
         "SELECT DATE(criado_em)::text as dia,COALESCE(SUM(total),0) as total FROM vendas WHERE tenant_id=? AND criado_em >= (CURRENT_DATE - INTERVAL '6 days') GROUP BY DATE(criado_em) ORDER BY dia", (tid,)).fetchall())
@@ -752,7 +721,7 @@ def api_categorias():
 def api_produtos_list():
     db=get_db(); q=request.args.get('q',''); cat=request.args.get('categoria',''); baixo=request.args.get('estoque_baixo','')
     tid=session['tenant_id']
-    sql="SELECT p.*,c.nome as categoria_nome FROM produtos p LEFT JOIN categorias c ON c.id=p.categoria_id WHERE p.tenant_id=? AND p.ativo=1"; params=[tid]
+    sql="SELECT p.*,c.nome as categoria_nome FROM produtos p LEFT JOIN categorias c ON c.id=p.categoria_id WHERE p.tenant_id=? AND p.ativo=True"; params=[tid]
     if q: sql+=" AND (p.nome LIKE ? OR p.codigo LIKE ?)"; params+=[f'%{q}%']*2
     if cat: sql+=" AND p.categoria_id=?"; params.append(cat)
     if baixo: sql+=" AND p.estoque<=p.estoque_minimo"
@@ -994,7 +963,7 @@ def api_compra_create():
 @require_auth
 def api_vendedores_list():
     db=get_db(); tid=session['tenant_id']
-    return jsonify(rows_to_list(db.execute("SELECT * FROM vendedores WHERE tenant_id=? AND ativo=1 ORDER BY nome", (tid,)).fetchall()))
+    return jsonify(rows_to_list(db.execute("SELECT * FROM vendedores WHERE tenant_id=? AND ativo=True ORDER BY nome", (tid,)).fetchall()))
 
 @app.route('/api/vendedores', methods=['POST'])
 @require_auth
@@ -1213,7 +1182,7 @@ def rel_financeiro():
 @require_module('relatorios')
 def rel_estoque():
     db=get_db(); tid=session['tenant_id']
-    rows=db.execute("SELECT p.*,c.nome as categoria_nome,(p.estoque*p.preco_custo) as valor_estoque FROM produtos p LEFT JOIN categorias c ON c.id=p.categoria_id WHERE p.tenant_id=? AND p.ativo=1 ORDER BY p.nome", (tid,)).fetchall()
+    rows=db.execute("SELECT p.*,c.nome as categoria_nome,(p.estoque*p.preco_custo) as valor_estoque FROM produtos p LEFT JOIN categorias c ON c.id=p.categoria_id WHERE p.tenant_id=? AND p.ativo=True ORDER BY p.nome", (tid,)).fetchall()
     total_val=sum(r['valor_estoque'] or 0 for r in rows)
     return jsonify({'produtos':rows_to_list(rows),'valor_total_estoque':total_val,'produtos_estoque_baixo':[dict(r) for r in rows if r['estoque']<=r['estoque_minimo']]})
 
