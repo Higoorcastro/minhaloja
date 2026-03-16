@@ -433,34 +433,65 @@ def login_page():
 @app.route('/api/auth/login', methods=['POST'])
 @limiter.limit('10 per minute')
 def api_login():
-    d = request.json or {}
-    login = (d.get('login') or '').strip()
-    senha = d.get('senha') or ''
-    # Validação mínima no backend (não confiar no front)
-    if not login or not senha or len(login) > 100 or len(senha) > 200:
-        return jsonify({'ok': False, 'message': 'Credenciais inválidas'}), 400
-    db = get_db()
-
-    user = db.execute(
-        "SELECT * FROM tenant_usuarios WHERE login=? AND ativo=1",
-        (login,)).fetchone()
-
-    if not user:
-        return jsonify({'ok': False, 'message': 'Login ou senha incorretos'}), 401
-
-    result = verify_pw(senha, user['senha_hash'])
-    if not result:
-        return jsonify({'ok': False, 'message': 'Login ou senha incorretos'}), 401
-
-    # Migração transparente de SHA-256 para bcrypt
-    if isinstance(result, tuple) and result[1] == 'migrate':
-        db.execute("UPDATE tenant_usuarios SET senha_hash=? WHERE id=?",
-                   (hash_pw(senha), user['id']))
-        db.commit()
-
-    tenant = db.execute("SELECT status FROM tenants WHERE id=?", (user['tenant_id'],)).fetchone()
-    if not tenant or tenant['status'] != 'ATIVO':
-        return jsonify({'ok': False, 'message': 'Loja bloqueada. Contate o administrador.'}), 403
+    import sys
+    sys.stderr.write("DEBUG LOGIN: Start\n")
+    sys.stderr.flush()
+    try:
+        d = request.json or {}
+        sys.stderr.write(f"DEBUG LOGIN: JSON loaded: {bool(d)}\n")
+        sys.stderr.flush()
+        
+        login = (d.get('login') or '').strip()
+        senha = d.get('senha') or ''
+        
+        sys.stderr.write("DEBUG LOGIN: Validating credentials length\n")
+        sys.stderr.flush()
+        # Validação mínima no backend (não confiar no front)
+        if not login or not senha or len(login) > 100 or len(senha) > 200:
+            return jsonify({'ok': False, 'message': 'Credenciais inválidas'}), 400
+            
+        sys.stderr.write("DEBUG LOGIN: Getting DB connection\n")
+        sys.stderr.flush()
+        db = get_db()
+    
+        sys.stderr.write("DEBUG LOGIN: Executing user query\n")
+        sys.stderr.flush()
+        user = db.execute(
+            "SELECT * FROM tenant_usuarios WHERE login=? AND ativo=1",
+            (login,)).fetchone()
+    
+        sys.stderr.write(f"DEBUG LOGIN: User found: {bool(user)}\n")
+        sys.stderr.flush()
+        if not user:
+            return jsonify({'ok': False, 'message': 'Login ou senha incorretos'}), 401
+    
+        sys.stderr.write("DEBUG LOGIN: Verifying password\n")
+        sys.stderr.flush()
+        result = verify_pw(senha, user['senha_hash'])
+        
+        sys.stderr.write(f"DEBUG LOGIN: Password verify result: {result}\n")
+        sys.stderr.flush()
+        if not result:
+            return jsonify({'ok': False, 'message': 'Login ou senha incorretos'}), 401
+    
+        # Migração transparente de SHA-256 para bcrypt
+        if isinstance(result, tuple) and result[1] == 'migrate':
+            sys.stderr.write("DEBUG LOGIN: Migrating password\n")
+            sys.stderr.flush()
+            db.execute("UPDATE tenant_usuarios SET senha_hash=? WHERE id=?",
+                       (hash_pw(senha), user['id']))
+            db.commit()
+    
+        sys.stderr.write("DEBUG LOGIN: Checking tenant status\n")
+        sys.stderr.flush()
+        tenant = db.execute("SELECT status FROM tenants WHERE id=?", (user['tenant_id'],)).fetchone()
+        if not tenant or tenant['status'] != 'ATIVO':
+            return jsonify({'ok': False, 'message': 'Loja bloqueada. Contate o administrador.'}), 403
+    except Exception as e:
+        sys.stderr.write(f"DEBUG LOGIN ERROR: {str(e)}\n")
+        sys.stderr.write(traceback.format_exc())
+        sys.stderr.flush()
+        raise e
 
     # Carrega permissões reais: admin tem tudo, operador tem apenas o que foi configurado
     if user['papel'] == 'admin':
