@@ -14,6 +14,7 @@ from flask_limiter.util import get_remote_address
 from dotenv import load_dotenv
 
 import traceback
+print("🟢 App.py starting...")
 load_dotenv()
 
 # ── Path helpers ───────────────────────────────────────────────────────────
@@ -115,7 +116,9 @@ def verify_pw(plain, stored_hash):
 def init_db():
     print("📋 Tentando inicializar tabelas...")
     try:
+        print(f"🔗 Conectando ao DB: {DB_URL[:20]}...")
         raw_db = psycopg2.connect(DB_URL, cursor_factory=DictCursor, connect_timeout=5)
+        print("✅ Conexão estabelecida.")
         raw_db.autocommit = True
     except Exception as e:
         print(f"!!! Error in init_db connection: {e}")
@@ -326,7 +329,8 @@ def handle_exception(e):
         return e
 
     tb = traceback.format_exc()
-    print(f"!!! Error detected:\n{tb}")
+    print(f"❌ ERROR DETECTED: {e}")
+    print(tb)
     return jsonify({
         'ok': False,
         'error': str(e),
