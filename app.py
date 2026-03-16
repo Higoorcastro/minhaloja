@@ -14,7 +14,6 @@ from flask_limiter.util import get_remote_address
 from dotenv import load_dotenv
 
 import traceback
-print("🟢 App.py starting...")
 load_dotenv()
 
 # ── Path helpers ───────────────────────────────────────────────────────────
@@ -43,7 +42,8 @@ if not _secret:
 app.secret_key = _secret
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
-app.config['SESSION_COOKIE_SECURE'] = os.getenv('FLASK_ENV') != 'development'
+# Desabilita cookie seguro pois o site usa HTTP. Ativar apenas se tiver HTTPS real.
+app.config['SESSION_COOKIE_SECURE'] = False
 
 # Rate Limiter (armazenado em memória; para produção multi-worker use Redis)
 limiter = Limiter(
@@ -100,14 +100,11 @@ def hash_pw(pw):
 
 def verify_pw(plain, stored_hash):
     """Verify password, supports bcrypt and legacy SHA-256 (auto-migrates)."""
-    db = get_db()
-    # Try bcrypt first
     try:
         if bcrypt.checkpw(plain.encode('utf-8'), stored_hash.encode('utf-8')):
             return True
     except Exception:
         pass
-    # Fallback: check legacy SHA-256 and migrate to bcrypt transparently
     legacy = hashlib.sha256(plain.encode()).hexdigest()
     if secrets.compare_digest(legacy, stored_hash):
         return True, 'migrate'
