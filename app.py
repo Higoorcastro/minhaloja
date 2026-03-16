@@ -973,13 +973,10 @@ def rel_estoque():
     return jsonify({'produtos':rows_to_list(rows),'valor_total_estoque':total_val,'produtos_estoque_baixo':[dict(r) for r in rows if r['estoque']<=r['estoque_minimo']]})
 
 # ══════════════════════════════════════════════════════════════════════════
+# Inicialização do Banco
+init_db()
+
 if __name__ == '__main__':
-    db_existed = os.path.exists(DB_PATH)
-    init_db()
-    if not db_existed:
-        run_setup_wizard()
-    port = 5678
+    port = int(os.environ.get('PORT', 5678))
     print(f"🚀 GestãoLoja em http://localhost:{port}")
-    print(f"   Admin: admin / admin123")
-    threading.Timer(1.2, lambda: webbrowser.open(f'http://localhost:{port}')).start()
-    app.run(host='127.0.0.1', port=port, debug=False, use_reloader=False)
+    app.run(host='0.0.0.0', port=port, debug=False)

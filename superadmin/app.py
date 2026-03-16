@@ -309,8 +309,9 @@ def init_db():
             db.session.add(admin)
             db.session.commit()
 
+init_db()
+
 if __name__ == '__main__':
-    init_db()
     port = int(os.environ.get('PORT', 5679))
     print(f"🚀 Super Admin Panel rodando em http://localhost:{port}")
-    app.run(host='0.0.0.1', port=port, debug=True)
+    app.run(host='0.0.0.0', port=port, debug=True)
