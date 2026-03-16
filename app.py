@@ -523,7 +523,7 @@ def api_plano_info():
                COUNT(tu.id) as total_usuarios
         FROM tenants t
         JOIN planos p ON p.id = t.plano_id
-        LEFT JOIN tenant_usuarios tu ON tu.tenant_id = t.id AND tu.ativo = True
+        LEFT JOIN tenant_usuarios tu ON tu.tenant_id = t.id AND tu.ativo = 1
         WHERE t.id = ?
         GROUP BY p.max_usuarios, p.modulos
     """, (tid,)).fetchone()
@@ -561,7 +561,7 @@ def _get_plano_info(db, tid):
                COUNT(tu.id) as total_usuarios
         FROM tenants t
         JOIN planos p ON p.id = t.plano_id
-        LEFT JOIN tenant_usuarios tu ON tu.tenant_id = t.id AND tu.ativo = True
+        LEFT JOIN tenant_usuarios tu ON tu.tenant_id = t.id AND tu.ativo = 1
         WHERE t.id = ?
         GROUP BY p.max_usuarios, p.modulos
     """, (tid,)).fetchone()
@@ -625,7 +625,7 @@ def api_usuario_update(uid):
     if target['papel'] == 'admin' and d.get('papel') != 'admin' and admins <= 1:
         return jsonify({'ok': False, 'message': 'Não é possível remover o último administrador da loja'}), 400
 
-    ativo = True if str(d.get('ativo', 1)) in ['1', 'True', 'true'] else False
+    ativo = 1 if str(d.get('ativo', 1)) in ['1', 'True', 'true'] else 0
     papel = d.get('papel', 'operador')
     _, modulos_plano, _ = _get_plano_info(db, tid)
     perms_str = _validar_permissoes(d.get('permissoes', []), modulos_plano, papel)
@@ -1178,7 +1178,10 @@ def rel_estoque():
 
 # ══════════════════════════════════════════════════════════════════════════
 # Inicialização do Banco
-init_db()
+try:
+    init_db()
+except Exception as e:
+    print(f"!!! Warning: init_db failed: {e}")
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5678))
