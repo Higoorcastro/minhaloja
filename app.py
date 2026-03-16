@@ -432,7 +432,7 @@ def api_login():
     db = get_db()
 
     user = db.execute(
-        "SELECT * FROM tenant_usuarios WHERE login=? AND ativo=True",
+        "SELECT * FROM tenant_usuarios WHERE login=? AND ativo=1",
         (login,)).fetchone()
 
     if not user:
@@ -604,7 +604,7 @@ def api_usuario_create():
     perms_str = _validar_permissoes(d.get('permissoes', []), modulos_plano, papel)
 
     cur = db.execute(
-        "INSERT INTO tenant_usuarios (tenant_id,nome,login,senha_hash,papel,ativo,permissoes) VALUES(?,?,?,?,?,True,?) RETURNING id",
+        "INSERT INTO tenant_usuarios (tenant_id,nome,login,senha_hash,papel,ativo,permissoes) VALUES(?,?,?,?,?,1,?) RETURNING id",
         (tid, nome, login, hash_pw(d['senha']), papel, perms_str))
     uid = cur.fetchone()['id']
     db.commit()
@@ -618,7 +618,7 @@ def api_usuario_update(uid):
     d = request.json or {}
     tid = session['tenant_id']
 
-    admins = db.execute("SELECT COUNT(*) as c FROM tenant_usuarios WHERE tenant_id=? AND papel='admin' AND ativo=True", (tid,)).fetchone()['c']
+    admins = db.execute("SELECT COUNT(*) as c FROM tenant_usuarios WHERE tenant_id=? AND papel='admin' AND ativo=1", (tid,)).fetchone()['c']
     target = db.execute("SELECT papel FROM tenant_usuarios WHERE tenant_id=? AND id=?", (tid, uid)).fetchone()
     if not target:
         return jsonify({'ok': False, 'message': 'Usuário não encontrado'}), 404
@@ -656,11 +656,11 @@ def api_usuario_delete(uid):
         return jsonify({'ok': False, 'message': 'Não pode excluir o próprio usuário'}), 400
     db = get_db()
     tid = session['tenant_id']
-    admins = db.execute("SELECT COUNT(*) as c FROM tenant_usuarios WHERE tenant_id=? AND papel='admin' AND ativo=True", (tid,)).fetchone()['c']
+    admins = db.execute("SELECT COUNT(*) as c FROM tenant_usuarios WHERE tenant_id=? AND papel='admin' AND ativo=1", (tid,)).fetchone()['c']
     target = db.execute("SELECT papel FROM tenant_usuarios WHERE tenant_id=? AND id=?", (tid, uid)).fetchone()
     if target and target['papel'] == 'admin' and admins <= 1:
         return jsonify({'ok': False, 'message': 'Não é possível remover o último administrador da loja'}), 400
-    db.execute("UPDATE tenant_usuarios SET ativo=False, login=login || '_del_' || id::text WHERE tenant_id=? AND id=?", (tid, uid))
+    db.execute("UPDATE tenant_usuarios SET ativo=0, login=login || '_del_' || id::text WHERE tenant_id=? AND id=?", (tid, uid))
     db.commit()
     return jsonify({'ok': True})
 
@@ -682,7 +682,7 @@ def api_dashboard():
     os_ab   = db.execute("SELECT COUNT(*) as c FROM ordens_servico WHERE tenant_id=? AND status NOT IN ('CONCLUIDA','CANCELADA')", (tid,)).fetchone()['c']
     os_mes  = db.execute("SELECT COALESCE(SUM(total),0) as t FROM ordens_servico WHERE tenant_id=? AND DATE(criado_em)>=DATE(?) AND status='CONCLUIDA'", (tid, mes_ini)).fetchone()['t']
     desp    = db.execute("SELECT COALESCE(SUM(valor),0) as t FROM despesas WHERE tenant_id=? AND DATE(data)>=DATE(?)", (tid, mes_ini)).fetchone()['t']
-    prod_bx = db.execute("SELECT COUNT(*) as c FROM produtos WHERE tenant_id=? AND estoque<=estoque_minimo AND ativo=True", (tid,)).fetchone()['c']
+    prod_bx = db.execute("SELECT COUNT(*) as c FROM produtos WHERE tenant_id=? AND estoque<=estoque_minimo AND ativo=1", (tid,)).fetchone()['c']
     receita = v_mes + os_mes
     v7d = rows_to_list(db.execute(
         "SELECT DATE(criado_em)::text as dia,COALESCE(SUM(total),0) as total FROM vendas WHERE tenant_id=? AND criado_em >= (CURRENT_DATE - INTERVAL '6 days') GROUP BY DATE(criado_em) ORDER BY dia", (tid,)).fetchall())
