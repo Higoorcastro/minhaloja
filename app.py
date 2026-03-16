@@ -13,6 +13,7 @@ from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from dotenv import load_dotenv
 
+import traceback
 load_dotenv()
 
 # ── Path helpers ───────────────────────────────────────────────────────────
@@ -312,6 +313,17 @@ def add_security_headers(resp):
     )
     return resp
 
+@app.errorhandler(Exception)
+def handle_exception(e):
+    """Global error handler to return JSON instead of HTML on error."""
+    tb = traceback.format_exc()
+    print(f"!!! Error detected:\n{tb}")
+    return jsonify({
+        'ok': False,
+        'error': str(e),
+        'traceback': tb if os.getenv('FLASK_ENV') == 'development' or True else None # Force true for debugging VPS
+    }), 500
+
 # ── Helpers ────────────────────────────────────────────────────────────────
 def rows_to_list(rows):
     return [dict(r) for r in rows]
@@ -366,6 +378,39 @@ def api_save_config():
                    (tenant_id, k, v))
     db.commit()
     return jsonify({'ok': True})
+
+@app.route('/api/config/logo', methods=['POST'])
+@require_auth
+def api_upload_logo():
+    if session.get('papel') != 'admin':
+        return jsonify({'ok': False, 'error': 'Acesso negado'}), 403
+    
+    if 'logo' not in request.files:
+        return jsonify({'ok': False, 'message': 'Nenhum arquivo enviado'}), 400
+    
+    file = request.files['logo']
+    if file.filename == '':
+        return jsonify({'ok': False, 'message': 'Nome de arquivo inválido'}), 400
+
+    ext = os.path.splitext(file.filename)[1].lower()
+    if ext not in ['.jpg', '.jpeg', '.png', '.webp']:
+        return jsonify({'ok': False, 'message': 'Formato não suportado: use JPG, PNG ou WEBP'}), 400
+        
+    tenant_id = session.get('tenant_id')
+    filename = f"logo_{tenant_id}_{int(datetime.now().timestamp())}{ext}"
+    upload_path = os.path.join('static', 'uploads', 'logos')
+    os.makedirs(upload_path, exist_ok=True)
+    
+    full_path = os.path.join(upload_path, filename)
+    file.save(full_path)
+    
+    logo_url = f"/static/uploads/logos/{filename}"
+    db = get_db()
+    db.execute("INSERT INTO config (tenant_id, chave, valor) VALUES (?, 'shop_logo', ?) "
+               "ON CONFLICT (tenant_id, chave) DO UPDATE SET valor = EXCLUDED.valor", 
+               (tenant_id, logo_url))
+    db.commit()
+    return jsonify({'ok': True, 'logo_url': logo_url})
 
 # ══════════════════════════════════════════════════════════════════════════
 # AUTH
@@ -640,7 +685,7 @@ def api_dashboard():
     prod_bx = db.execute("SELECT COUNT(*) as c FROM produtos WHERE tenant_id=? AND estoque<=estoque_minimo AND ativo=True", (tid,)).fetchone()['c']
     receita = v_mes + os_mes
     v7d = rows_to_list(db.execute(
-        "SELECT DATE(criado_em) as dia,COALESCE(SUM(total),0) as total FROM vendas WHERE tenant_id=? AND criado_em >= (CURRENT_DATE - INTERVAL '6 days') GROUP BY DATE(criado_em) ORDER BY dia", (tid,)).fetchall())
+        "SELECT DATE(criado_em)::text as dia,COALESCE(SUM(total),0) as total FROM vendas WHERE tenant_id=? AND criado_em >= (CURRENT_DATE - INTERVAL '6 days') GROUP BY DATE(criado_em) ORDER BY dia", (tid,)).fetchall())
     top = rows_to_list(db.execute(
         "SELECT p.nome,SUM(vi.quantidade) as qtd,SUM(vi.subtotal) as total FROM venda_itens vi JOIN produtos p ON p.id=vi.produto_id WHERE p.tenant_id=? GROUP BY p.nome ORDER BY qtd DESC LIMIT 5", (tid,)).fetchall())
     return jsonify({'vendas_hoje':v_hoje,'vendas_mes':v_mes,'vendas_count':v_count,

@@ -988,9 +988,20 @@
       margin-right: 4px;
     }
 
-    .stock-ok { background: var(--green); box-shadow: 0 0 8px var(--green); }
-    .stock-low { background: var(--orange); box-shadow: 0 0 8px var(--orange); }
-    .stock-none { background: var(--red); box-shadow: 0 0 8px var(--red); }
+    .stock-ok {
+      background: var(--green);
+      box-shadow: 0 0 8px var(--green);
+    }
+
+    .stock-low {
+      background: var(--orange);
+      box-shadow: 0 0 8px var(--orange);
+    }
+
+    .stock-none {
+      background: var(--red);
+      box-shadow: 0 0 8px var(--red);
+    }
 
     .produto-card.sem-estoque {
       opacity: .6;
@@ -1658,7 +1669,7 @@
     <!-- SIDEBAR -->
     <div id="sidebar">
       <div id="sidebar-header">
-        <img src="/static/img/logo.png" class="logo-icon" alt="Logo" onerror="this.style.display='none'">
+        <img id="sidebar-logo" src="/static/img/logo.png" class="logo-icon" alt="Logo" onerror="this.onerror=null;this.src='/static/img/logo.png'">
         <div class="logo-text">
           <div id="sidebar-shop-name">Carregando...</div>
           <div class="logo-sub">v1.0</div>
@@ -1887,7 +1898,16 @@
       const r = await fetch(url, opts);
       if (r.status === 401) { window.location.href = '/login'; return null; }
       if (r.status === 403) { notify('Sem permissão para esta ação', 'error'); return null; }
-      return r.json();
+      const data = await r.json();
+      if (!r.ok) {
+        const msg = data.error || 'Erro desconhecido no servidor';
+        notify(msg, 'error');
+        if (data.traceback) {
+          console.error('Server Traceback:', data.traceback);
+        }
+        return data; // Return full object so pages can handle errors
+      }
+      return data;
     }
 
     // ── Auth ───────────────────────────────────────────────────────
@@ -1941,7 +1961,11 @@
       const config = await api('/api/config');
       if (config) {
         shopConfig = config;
-        document.getElementById('sidebar-shop-name').textContent = config.shop_name || 'GestãoLoja';
+        document.getElementById('sidebar-shop-name').textContent = config.shop_name || 'MinhaLoja';
+        if (config.shop_logo) {
+          const sidebarLogo = document.getElementById('sidebar-logo');
+          if (sidebarLogo) sidebarLogo.src = config.shop_logo;
+        }
       }
     }
 
@@ -2003,7 +2027,17 @@
     async function renderDashboard() {
       document.getElementById('content').innerHTML = '<div class="empty"><div class="empty-icon">⏳</div><p>Carregando...</p></div>';
       const d = await api('/api/dashboard');
-      if (!d) return;
+      if (!d || d.ok === false) {
+        document.getElementById('content').innerHTML = `
+          <div class="empty">
+            <div class="empty-icon">❌</div>
+            <p>Erro ao carregar dashboard</p>
+            ${d?.error ? `<div style="font-size:12px; color:var(--red); margin-top:10px; max-width:80%; word-break:break-word;">${d.error}</div>` : ''}
+            ${d?.traceback ? `<button class="btn btn-sm" style="margin-top:10px" onclick="this.nextElementSibling.style.display='block';this.style.display='none'">Ver detalhes técnicos</button><pre style="display:none; text-align:left; font-size:10px; background:var(--bg2); padding:10px; margin-top:10px; border-radius:8px; max-height:300px; overflow:auto; width:90%">${d.traceback}</pre>` : ''}
+            <button class="btn btn-primary" style="margin-top:20px" onclick="renderDashboard()">Tentar Novamente</button>
+          </div>`;
+        return;
+      }
       const bars = buildBars(d.vendas_7d);
       const topProd = d.top_produtos.map(p => `<tr><td>${p.nome || '-'}</td><td class="mono">${fmtN(p.qtd)}</td><td class="mono text-green">${fmt(p.total)}</td></tr>`).join('')
         || '<tr><td colspan="3" style="text-align:center;color:var(--text3)">Sem dados</td></tr>';
@@ -2235,7 +2269,7 @@
       const grid = document.getElementById('pdv-grid');
       if (!grid) return;
       if (!prods.length) { grid.innerHTML = '<div class="empty" style="grid-column:1/-1"><div class="empty-icon">📦</div><p>Nenhum produto encontrado</p></div>'; return; }
-      
+
       const getIcon = (cat) => {
         const c = (cat || '').toLowerCase();
         if (c.includes('celular') || c.includes('smartphone')) return '📱';
@@ -2445,7 +2479,7 @@
       <div style="width: 72mm; margin-left: 0 auto; font-family: Arial, Helvetica, sans-serif; font-weight: 700; font-size: 12px; color: #000; padding: 5px;">
         <!-- HEADER -->
         <div style="text-align:center; margin-bottom: 5px;">
-          <img src="/static/img/impressao.png" style="width: 100%; max-height: 25mm; margin-bottom: 5px; object-fit: contain;" alt="Logo" onerror="this.style.display='none'">
+          <img src="${shopConfig.shop_logo || '/static/img/impressao.png'}" style="width: 100%; max-height: 25mm; margin-bottom: 5px; object-fit: contain;" alt="Logo" onerror="this.onerror=null;this.src='/static/img/impressao.png'">
           <div style="font-size: 10px; font-weight: bold;">${shopConfig.shop_address || '-'}</div>
           <div style="font-size: 10px; font-weight: bold;">WhatsApp: ${shopConfig.shop_whatsapp || '-'}</div>
           <div style="font-size: 10px; font-weight: bold;">Instagram: ${shopConfig.shop_instagram || '-'}</div>
@@ -2620,7 +2654,7 @@
       <div style="width: 72mm; margin: 0 auto; font-family: Arial, Helvetica, sans-serif; font-weight: 700; font-size: 12px; color: #000; padding: 5px; border-bottom: 1px dashed #000; margin-bottom: 10mm;">
         <!-- HEADER -->
         <div style="text-align:center; margin-bottom: 5px;">
-          <img src="/static/img/impressao.png" style="width: 100%; max-height: 25mm; margin-bottom: 5px; object-fit: contain;" alt="Logo" onerror="this.style.display='none'">
+          <img src="${shopConfig.shop_logo || '/static/img/impressao.png'}" style="width: 100%; max-height: 25mm; margin-bottom: 5px; object-fit: contain;" alt="Logo" onerror="this.onerror=null;this.src='/static/img/impressao.png'">
           <div style="font-size: 10px;font-weight: bold;">${shopConfig.shop_address || '-'}</div>
           <div style="font-size: 10px;font-weight: bold;">WhatsApp: ${shopConfig.shop_whatsapp || '-'}</div>
           <div style="font-size: 10px;font-weight: bold;">Instagram: ${shopConfig.shop_instagram || '-'}</div>
@@ -3023,7 +3057,7 @@
     async function renderFinanceiro() {
       const hasFinanceiro = currentUser.papel === 'admin' || currentUser.permissions.includes('financeiro');
       const hasReceber = currentUser.papel === 'admin' || currentUser.permissions.includes('receber');
-      
+
       // Default to what the user has access to
       if (!hasFinanceiro && hasReceber) currentFinTab = 'receber';
       else if (hasFinanceiro) currentFinTab = 'fluxo';
@@ -3065,9 +3099,9 @@
     }
 
     async function loadFinanceiro() {
-      const di = document.getElementById('ff-di')?.value || firstDay(); 
+      const di = document.getElementById('ff-di')?.value || firstDay();
       const df = document.getElementById('ff-df')?.value || today();
-      
+
       const container = document.getElementById('fin-tab-content');
       container.innerHTML = `
         <div class="filters">
@@ -3078,17 +3112,17 @@
         <div id="fin-data-content"><div class="empty"><div class="empty-icon">⏳</div><p>Carregando...</p></div></div>`;
 
       const [desp, compr] = await Promise.all([
-        api(`/api/despesas?data_ini=${di}&data_fim=${df}`), 
+        api(`/api/despesas?data_ini=${di}&data_fim=${df}`),
         api(`/api/compras?data_ini=${di}&data_fim=${df}`)
       ]);
       if (!desp || !compr) return;
 
-      const td = desp.reduce((a, b) => a + b.valor, 0); 
+      const td = desp.reduce((a, b) => a + b.valor, 0);
       const tc = compr.reduce((a, b) => a + b.total, 0);
-      
+
       const dH = desp.length ? desp.map(d => `<tr><td>${d.data}</td><td>${d.descricao}</td><td>${d.categoria}</td><td class="mono text-red fw7">${fmt(d.valor)}</td><td>${d.forma_pagamento}</td><td><button class="btn btn-sm btn-danger" onclick="deletarDespesa(${d.id})">✕</button></td></tr>`).join('') : '<tr><td colspan="6" style="text-align:center;color:var(--text3)">Nenhuma</td></tr>';
       const cH = compr.length ? compr.map(c => `<tr><td>${c.data}</td><td>${c.fornecedor || '-'}</td><td class="mono">${c.numero_nota || '-'}</td><td class="mono text-orange fw7">${fmt(c.total)}</td><td>${c.observacao || '-'}</td></tr>`).join('') : '<tr><td colspan="5" style="text-align:center;color:var(--text3)">Nenhuma</td></tr>';
-      
+
       document.getElementById('fin-data-content').innerHTML = `
         <div class="stats-grid" style="margin-bottom:16px">
           <div class="stat-card red"><div class="stat-icon">📉</div><div class="stat-label">Total Despesas</div><div class="stat-value text-red">${fmt(td)}</div></div>
@@ -3115,7 +3149,7 @@
       </div>`;
 
       let tableHtml = '<div class="card"><div class="tbl-wrap"><table><thead><tr><th>Vencimento</th><th>Cliente</th><th>Descrição</th><th>Valor Total</th><th>Recebido</th><th>Status</th><th>Ações</th></tr></thead><tbody>';
-      
+
       if (contas.length === 0) {
         tableHtml += '<tr><td colspan="7" style="text-align:center;color:var(--text3)">Nenhuma conta a receber encontrada</td></tr>';
       } else {
@@ -3287,8 +3321,19 @@
           <div id="settings-tab-geral">
             <div class="section-title">Dados da Loja</div>
             <p style="color: var(--text2); font-size: 13px; margin-bottom: 20px;">Essas informações aparecem no topo do sistema e em todas as impressões de O.S.</p>
-            
-            <div class="form-grid" style="grid-template-columns: 1fr;">
+
+            <div style="display:flex; gap:24px; margin-bottom:30px; align-items:flex-start; flex-wrap:wrap">
+              <div style="flex-shrink:0;">
+                <label style="display:block; margin-bottom:8px; font-size:12px; font-weight:600; color:var(--text3); text-transform:uppercase">Logo da Empresa</label>
+                <div style="width:120px; height:120px; border:2px dashed var(--border); border-radius:12px; display:flex; align-items:center; justify-content:center; overflow:hidden; background:var(--bg3); position:relative; cursor:pointer" onclick="document.getElementById('logo-upload-input').click()">
+                  <img id="logo-preview" src="${shopConfig.shop_logo || '/static/img/logo.png'}" style="max-width:100%; max-height:100%; object-fit:contain">
+                  <div style="position:absolute; bottom:0; left:0; right:0; background:rgba(0,0,0,0.5); color:white; font-size:10px; text-align:center; padding:4px">Alterar</div>
+                </div>
+                <input type="file" id="logo-upload-input" style="display:none" accept="image/*" onchange="fazerUploadLogo(this)">
+              </div>
+              
+              <div style="flex:1; min-width:250px">
+                <div class="form-grid" style="grid-template-columns: 1fr;">
               <div class="form-group">
                 <label>Nome da Loja</label>
                 <input type="text" id="cfg-shop-name" value="${shopConfig.shop_name || ''}" placeholder="Ex: Center Cell">
@@ -3322,6 +3367,34 @@
         </div>
       `;
       loadVendedoresView();
+    }
+
+    async function fazerUploadLogo(input) {
+      if (!input.files || !input.files[0]) return;
+      const file = input.files[0];
+      const formData = new FormData();
+      formData.append('logo', file);
+
+      notify('Enviando logo...', 'info');
+      try {
+        const r = await fetch('/api/config/logo', {
+          method: 'POST',
+          body: formData
+        }).then(res => res.json());
+
+        if (r.ok) {
+          notify('Logo atualizada com sucesso!', 'success');
+          document.getElementById('logo-preview').src = r.logo_url;
+          shopConfig.shop_logo = r.logo_url;
+          // Atualiza logo na sidebar imediatamente
+          const sidebarLogo = document.getElementById('sidebar-logo');
+          if (sidebarLogo) sidebarLogo.src = r.logo_url;
+        } else {
+          notify(r.message || 'Erro ao enviar logo', 'error');
+        }
+      } catch (e) {
+        notify('Erro na conexão com o servidor', 'error');
+      }
     }
 
     function switchSettingsTab(tab) {
@@ -3418,7 +3491,7 @@
       }
     }
     initAuth();
-  
+
     // ══════════════════════════════════════════════════════════════
     // CONTAS A RECEBER
     // ══════════════════════════════════════════════════════════════
@@ -3426,7 +3499,7 @@
     async function openNovaContaReceber() {
       allClientes = await api('/api/clientes') || [];
       const cliOptions = allClientes.map(c => `<option value="${c.id}">${c.nome} - ${c.cpf_cnpj || ''}</option>`).join('');
-      
+
       openModal('Nova Conta a Receber', `
       <div class="form-grid">
         <div class="form-group full">
@@ -3458,12 +3531,12 @@
       const cid = document.getElementById('nova-conta-cli').value;
       const novoNome = document.getElementById('nova-conta-novo-cli').value.trim();
       if (!cid && !novoNome) { notify('Selecione um cliente ou informe um novo nome', 'error'); return; }
-      
+
       const val = parseMoney(document.getElementById('nova-conta-valor').value);
       if (val <= 0) { notify('Valor deve ser maior que zero', 'error'); return; }
       const desc = document.getElementById('nova-conta-desc').value.trim();
       if (!desc) { notify('A descrição é obrigatória', 'error'); return; }
-      
+
       const payload = {
         descricao: desc,
         valor_total: val,
@@ -3474,7 +3547,7 @@
       } else {
         payload.novo_cliente = { nome: novoNome };
       }
-      
+
       const r = await api('/api/contas_receber', 'POST', payload);
       if (r?.ok) {
         notify('Conta registrada com sucesso!');
@@ -3491,7 +3564,7 @@
       const c = data.conta;
       const faltante = c.valor_total - c.total_recebido;
       if (faltante <= 0) { notify('Esta conta já está totalmente paga.', 'info'); return; }
-      
+
       openModal('Registrar Pagamento', `
       <div style="margin-bottom:15px; background:var(--bg3); padding:10px; border-radius:8px">
         <strong>${c.cliente_nome || 'Desconhecido'}</strong><br/>
@@ -3524,13 +3597,13 @@
     async function salvarPagamentoConta(id) {
       const val = parseMoney(document.getElementById('pagamento-valor').value);
       if (val <= 0) { notify('Valor inválido', 'error'); return; }
-      
+
       const payload = {
         valor_pago: val,
         data_pagamento: document.getElementById('pagamento-data').value,
         forma_pagamento: document.getElementById('pagamento-forma').value
       };
-      
+
       const r = await api('/api/contas_receber/' + id + '/recebimento', 'POST', payload);
       if (r?.ok) {
         notify('Pagamento registrado. Status atualizado: ' + r.novo_status);
@@ -3544,7 +3617,7 @@
       if (!data) return;
       const c = data.conta;
       const recs = data.recebimentos;
-      
+
       let hists = recs.length ? recs.map(r => `
         <tr>
           <td>${r.data_pagamento.split('-').reverse().join('/')}</td>
@@ -3552,7 +3625,7 @@
           <td class="text-green fw7">+ ${fmt(r.valor_pago)}</td>
         </tr>
       `).join('') : '<tr><td colspan="3" class="text-muted" style="text-align:center">Nenhum pagamento registrado</td></tr>';
-      
+
       openModal('Detalhes da Conta', `
       <div style="background:var(--bg3); padding:15px; border-radius:8px; margin-bottom:15px; display:flex; flex-direction:column; gap:8px">
         <h4 style="margin-bottom:4px">${c.cliente_nome || 'Desconhecido'}</h4>
