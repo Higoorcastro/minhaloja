@@ -37,6 +37,8 @@ services:
       db:
         condition: service_healthy
     restart: unless-stopped
+    volumes:
+      - .:/app
     networks:
       - minhaloja_net
 
@@ -56,6 +58,8 @@ services:
       db:
         condition: service_healthy
     restart: unless-stopped
+    volumes:
+      - .:/app
     networks:
       - minhaloja_net
 

@@ -128,8 +128,9 @@ def api_dashboard():
     suspensos = Tenant.query.filter_by(status='SUSPENSO').count()
     
     # Receita baseada no preço dos planos dos tenants ativos
-    tenants_ativos = Tenant.query.filter_by(status='ATIVO').join(Plano).all()
+    tenants_ativos = Tenant.query.filter_by(status='ATIVO').all()
     receita_mensal = sum(t.plano.preco_mensal for t in tenants_ativos if t.plano)
+
     
     ultimos = Tenant.query.order_by(Tenant.criado_em.desc()).limit(5).all()
     ultimos_json = []

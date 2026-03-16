@@ -631,18 +631,18 @@ def api_dashboard():
     tid = session['tenant_id']
     hoje = date.today().isoformat()
     mes_ini = date.today().replace(day=1).isoformat()
-    v_hoje  = db.execute("SELECT COALESCE(SUM(total),0) as t FROM vendas WHERE tenant_id=? AND date(criado_em)=?", (tid, hoje)).fetchone()['t']
-    v_mes   = db.execute("SELECT COALESCE(SUM(total),0) as t FROM vendas WHERE tenant_id=? AND date(criado_em)>=?", (tid, mes_ini)).fetchone()['t']
-    v_count = db.execute("SELECT COUNT(*) as c FROM vendas WHERE tenant_id=? AND date(criado_em)>=?", (tid, mes_ini)).fetchone()['c']
+    v_hoje  = db.execute("SELECT COALESCE(SUM(total),0) as t FROM vendas WHERE tenant_id=? AND DATE(criado_em)=DATE(?)", (tid, hoje)).fetchone()['t']
+    v_mes   = db.execute("SELECT COALESCE(SUM(total),0) as t FROM vendas WHERE tenant_id=? AND DATE(criado_em)>=DATE(?)", (tid, mes_ini)).fetchone()['t']
+    v_count = db.execute("SELECT COUNT(*) as c FROM vendas WHERE tenant_id=? AND DATE(criado_em)>=DATE(?)", (tid, mes_ini)).fetchone()['c']
     os_ab   = db.execute("SELECT COUNT(*) as c FROM ordens_servico WHERE tenant_id=? AND status NOT IN ('CONCLUIDA','CANCELADA')", (tid,)).fetchone()['c']
-    os_mes  = db.execute("SELECT COALESCE(SUM(total),0) as t FROM ordens_servico WHERE tenant_id=? AND date(criado_em)>=? AND status='CONCLUIDA'", (tid, mes_ini)).fetchone()['t']
-    desp    = db.execute("SELECT COALESCE(SUM(valor),0) as t FROM despesas WHERE tenant_id=? AND date(data)>=?", (tid, mes_ini)).fetchone()['t']
-    prod_bx = db.execute("SELECT COUNT(*) as c FROM produtos WHERE tenant_id=? AND estoque<=estoque_minimo AND ativo=1", (tid,)).fetchone()['c']
+    os_mes  = db.execute("SELECT COALESCE(SUM(total),0) as t FROM ordens_servico WHERE tenant_id=? AND DATE(criado_em)>=DATE(?) AND status='CONCLUIDA'", (tid, mes_ini)).fetchone()['t']
+    desp    = db.execute("SELECT COALESCE(SUM(valor),0) as t FROM despesas WHERE tenant_id=? AND DATE(data)>=DATE(?)", (tid, mes_ini)).fetchone()['t']
+    prod_bx = db.execute("SELECT COUNT(*) as c FROM produtos WHERE tenant_id=? AND estoque<=estoque_minimo AND ativo=True", (tid,)).fetchone()['c']
     receita = v_mes + os_mes
     v7d = rows_to_list(db.execute(
-        "SELECT date(criado_em) as dia,COALESCE(SUM(total),0) as total FROM vendas WHERE tenant_id=? AND date(criado_em)>=date('now','-6 days') GROUP BY dia ORDER BY dia", (tid,)).fetchall())
+        "SELECT DATE(criado_em) as dia,COALESCE(SUM(total),0) as total FROM vendas WHERE tenant_id=? AND criado_em >= (CURRENT_DATE - INTERVAL '6 days') GROUP BY DATE(criado_em) ORDER BY dia", (tid,)).fetchall())
     top = rows_to_list(db.execute(
-        "SELECT p.nome,SUM(vi.quantidade) as qtd,SUM(vi.subtotal) as total FROM venda_itens vi JOIN produtos p ON p.id=vi.produto_id WHERE p.tenant_id=? GROUP BY vi.produto_id ORDER BY qtd DESC LIMIT 5", (tid,)).fetchall())
+        "SELECT p.nome,SUM(vi.quantidade) as qtd,SUM(vi.subtotal) as total FROM venda_itens vi JOIN produtos p ON p.id=vi.produto_id WHERE p.tenant_id=? GROUP BY p.nome ORDER BY qtd DESC LIMIT 5", (tid,)).fetchall())
     return jsonify({'vendas_hoje':v_hoje,'vendas_mes':v_mes,'vendas_count':v_count,
                     'os_abertas':os_ab,'os_mes':os_mes,'despesas_mes':desp,
                     'receita_mes':receita,'lucro_mes':receita-desp,
