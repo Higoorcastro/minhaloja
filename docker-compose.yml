@@ -15,6 +15,11 @@ services:
     restart: unless-stopped
     networks:
       - minhaloja_net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d minhaloja_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
   app:
     build: .
@@ -29,7 +34,8 @@ services:
     ports:
       - "5678:5678"
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     restart: unless-stopped
     networks:
       - minhaloja_net
@@ -47,7 +53,8 @@ services:
     ports:
       - "5679:5679"
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     restart: unless-stopped
     networks:
       - minhaloja_net
