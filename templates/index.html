@@ -153,7 +153,25 @@
     .nav-sep {
       height: 1px;
       background: var(--border);
-      margin: 8px 0
+      margin: 12px 8px;
+      opacity: 0.5
+    }
+
+    .nav-title {
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--text3);
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      padding: 12px 14px 6px;
+      transition: opacity .2s;
+      white-space: nowrap
+    }
+
+    #sidebar.collapsed .nav-title {
+      opacity: 0;
+      padding: 12px 0 6px;
+      overflow: hidden
     }
 
     /* USER INFO in sidebar bottom */
@@ -281,6 +299,43 @@
       font-size: 16px;
       font-weight: 600;
       flex: 1
+    }
+
+    /* TABS FINANCEIRO */
+    .tabs-wrap {
+      display: flex;
+      gap: 20px;
+      margin-bottom: 20px;
+      border-bottom: 1px solid var(--border);
+      padding: 0 4px;
+    }
+
+    .tab-item {
+      padding: 8px 4px 12px;
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text2);
+      cursor: pointer;
+      position: relative;
+      transition: color .2s;
+    }
+
+    .tab-item:hover {
+      color: var(--text);
+    }
+
+    .tab-item.active {
+      color: var(--blue);
+    }
+
+    .tab-item.active::after {
+      content: '';
+      position: absolute;
+      bottom: -1px;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: var(--blue);
     }
 
     .topbar-btn {
@@ -1603,7 +1658,8 @@
           <div class="logo-sub">v1.0</div>
         </div>
       </div>
-      <nav id="nav">
+      <nav id="nav" class="hidden-scroll">
+        <div class="nav-title">Principal</div>
         <div class="nav-item active" onclick="navigate('dashboard')" data-page="dashboard">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <rect x="3" y="3" width="7" height="7" />
@@ -1613,7 +1669,8 @@
           </svg>
           <span class="nav-label">Dashboard</span>
         </div>
-        <div class="nav-sep"></div>
+
+        <div class="nav-title">Operacional</div>
         <div class="nav-item" onclick="navigate('pdv')" data-page="pdv">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <circle cx="9" cy="21" r="1" />
@@ -1636,9 +1693,10 @@
             <path
               d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />
           </svg>
-          <span class="nav-label">Ordens de Serviço</span>
+          <span class="nav-label">Serviços (O.S)</span>
         </div>
-        <div class="nav-sep"></div>
+
+        <div class="nav-title">Catálogos</div>
         <div class="nav-item" onclick="navigate('produtos')" data-page="produtos">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z" />
@@ -1656,13 +1714,14 @@
           </svg>
           <span class="nav-label">Clientes</span>
         </div>
-        <div class="nav-sep"></div>
+
+        <div class="nav-title">Financeiro</div>
         <div class="nav-item" onclick="navigate('financeiro')" data-page="financeiro">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <line x1="12" y1="1" x2="12" y2="23" />
             <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
           </svg>
-          <span class="nav-label">Financeiro</span>
+          <span class="nav-label">Caixa & Fluxo</span>
         </div>
         <div class="nav-item" onclick="navigate('relatorios')" data-page="relatorios">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -1670,36 +1729,26 @@
           </svg>
           <span class="nav-label">Relatórios</span>
         </div>
-        <div class="nav-sep" id="nav-sep-receber" style="display:none"></div>
-        <div class="nav-item" onclick="navigate('receber')" data-page="receber" id="nav-receber" style="display:none">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <rect x="2" y="5" width="20" height="14" rx="2" />
-            <line x1="2" y1="10" x2="22" y2="10" />
-            <path d="M7 15h0" />
-            <path d="M12 15h0" />
-          </svg>
-          <span class="nav-label">A Receber</span>
-        </div>
 
-        <div class="nav-sep" id="nav-sep-admin" style="display:none"></div>
-        <div class="nav-item" onclick="navigate('usuarios')" data-page="usuarios" id="nav-usuarios"
-          style="display:none">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
-            <circle cx="9" cy="7" r="4" />
-            <line x1="19" y1="8" x2="19" y2="14" />
-            <line x1="22" y1="11" x2="16" y2="11" />
-          </svg>
-          <span class="nav-label">Usuários</span>
-        </div>
-        <div class="nav-item" onclick="navigate('settings')" data-page="settings" id="nav-settings"
-          style="display:none">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="12" cy="12" r="3" />
-            <path
-              d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
-          </svg>
-          <span class="nav-label">Configurações</span>
+        <div id="nav-section-gestao" style="display:none">
+          <div class="nav-title">Gestão</div>
+          <div class="nav-item" onclick="navigate('usuarios')" data-page="usuarios" id="nav-usuarios">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+              <circle cx="9" cy="7" r="4" />
+              <line x1="19" y1="8" x2="19" y2="14" />
+              <line x1="22" y1="11" x2="16" y2="11" />
+            </svg>
+            <span class="nav-label">Usuários</span>
+          </div>
+          <div class="nav-item" onclick="navigate('settings')" data-page="settings" id="nav-settings">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="3" />
+              <path
+                d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
+            </svg>
+            <span class="nav-label">Configurações</span>
+          </div>
         </div>
       </nav>
 
@@ -1844,21 +1893,19 @@
       document.getElementById('user-display-role').textContent = me.papel === 'admin' ? '👑 Administrador' : '👤 Operador';
       document.getElementById('user-avatar-init').textContent = me.nome.charAt(0).toUpperCase();
 
-      // Show "Usuários" nav item if has permission
-      if (me.papel === 'admin' || me.permissions.includes('usuarios')) {
-        document.getElementById('nav-usuarios').style.display = '';
-        document.getElementById('nav-sep-admin').style.display = '';
-      }
-
-      
-      if (me.papel === 'admin' || me.permissions.includes('financeiro')) {
-        document.getElementById('nav-receber').style.display = '';
-        document.getElementById('nav-sep-receber').style.display = '';
-        if (!me.permissions.includes('receber')) me.permissions.push('receber');
-      }
-
+      // Gestão section
       if (me.papel === 'admin') {
+        document.getElementById('nav-section-gestao').style.display = '';
         document.getElementById('nav-settings').style.display = '';
+        document.getElementById('nav-usuarios').style.display = '';
+      } else if (me.permissions.includes('usuarios')) {
+        document.getElementById('nav-section-gestao').style.display = '';
+        document.getElementById('nav-usuarios').style.display = '';
+      }
+
+      // Financeiro section
+      if (me.papel === 'admin' || me.permissions.includes('financeiro') || me.permissions.includes('receber')) {
+        // Financeiro view handles all sub-tabs now
       }
 
       // Hide unauthorized nav items
@@ -1866,7 +1913,12 @@
         document.querySelectorAll('.nav-item[data-page]').forEach(el => {
           const page = el.dataset.page;
           if (!me.permissions.includes(page)) {
-            el.style.display = 'none';
+            // Special case: Financeiro hub also accessible via 'receber' permission
+            if (page === 'financeiro' && me.permissions.includes('receber')) {
+              el.style.display = '';
+            } else {
+              el.style.display = 'none';
+            }
           }
         });
       }
@@ -1934,7 +1986,7 @@
       document.getElementById('topbar-actions').innerHTML = '';
       ({
         dashboard: renderDashboard, pdv: renderPDV, vendas: renderVendas, os: renderOS,
-        produtos: renderProdutos, clientes: renderClientes, financeiro: renderFinanceiro, receber: renderReceber,
+        produtos: renderProdutos, clientes: renderClientes, financeiro: renderFinanceiro, receber: renderFinanceiro,
         relatorios: renderRelatorios, usuarios: renderUsuarios, settings: renderSettings
       })[page]?.();
     }
@@ -2957,34 +3009,136 @@
     // ══════════════════════════════════════════════════════════════
     // FINANCEIRO
     // ══════════════════════════════════════════════════════════════
+    // ══════════════════════════════════════════════════════════════
+    // FINANCEIRO (UNIFICADO)
+    // ══════════════════════════════════════════════════════════════
+    let currentFinTab = 'fluxo';
+
     async function renderFinanceiro() {
-      document.getElementById('topbar-actions').innerHTML = `<button class="topbar-btn primary" onclick="novaDespesa()">+ Despesa</button><button class="topbar-btn" onclick="novaCompra()">+ Compra/Entrada</button>`;
+      const hasFinanceiro = currentUser.papel === 'admin' || currentUser.permissions.includes('financeiro');
+      const hasReceber = currentUser.papel === 'admin' || currentUser.permissions.includes('receber');
+      
+      // Default to what the user has access to
+      if (!hasFinanceiro && hasReceber) currentFinTab = 'receber';
+      else if (hasFinanceiro) currentFinTab = 'fluxo';
+
+      updateFinanceiroView();
+    }
+
+    async function updateFinanceiroView() {
+      const hasFinanceiro = currentUser.papel === 'admin' || currentUser.permissions.includes('financeiro');
+      const hasReceber = currentUser.papel === 'admin' || currentUser.permissions.includes('receber');
+
+      // Topbar Actions
+      let actionsHtml = '';
+      if (currentFinTab === 'fluxo' && hasFinanceiro) {
+        actionsHtml = `<button class="topbar-btn primary" onclick="novaDespesa()">+ Despesa</button>
+                      <button class="topbar-btn" onclick="novaCompra()">+ Compra/Entrada</button>`;
+      } else if (currentFinTab === 'receber' && hasReceber) {
+        actionsHtml = `<button class="topbar-btn primary" onclick="openNovaContaReceber()">+ Nova Conta</button>`;
+      }
+      document.getElementById('topbar-actions').innerHTML = actionsHtml;
+
+      // Layout with Tabs
       document.getElementById('content').innerHTML = `
-    <div class="filters">
-      <div class="filter-group"><label>Data Início</label><input type="date" id="ff-di" value="${firstDay()}"></div>
-      <div class="filter-group"><label>Data Fim</label><input type="date" id="ff-df" value="${today()}"></div>
-      <div style="display:flex;align-items:flex-end"><button class="btn btn-primary" onclick="loadFinanceiro()">🔍 Filtrar</button></div>
-    </div>
-    <div id="fin-content"><div class="empty"><div class="empty-icon">⏳</div><p>Carregando...</p></div></div>`;
-      loadFinanceiro();
+        <div class="tabs-wrap">
+          ${hasFinanceiro ? `<div class="tab-item ${currentFinTab === 'fluxo' ? 'active' : ''}" onclick="switchFinTab('fluxo')">💸 Fluxo de Caixa</div>` : ''}
+          ${hasReceber ? `<div class="tab-item ${currentFinTab === 'receber' ? 'active' : ''}" onclick="switchFinTab('receber')">💰 Contas a Receber</div>` : ''}
+        </div>
+        <div id="fin-tab-content">
+          <div class="empty"><div class="empty-icon">⏳</div><p>Carregando...</p></div>
+        </div>`;
+
+      if (currentFinTab === 'fluxo') loadFinanceiro();
+      else loadReceberInsideFin();
+    }
+
+    function switchFinTab(tab) {
+      currentFinTab = tab;
+      updateFinanceiroView();
     }
 
     async function loadFinanceiro() {
-      const di = document.getElementById('ff-di')?.value || firstDay(); const df = document.getElementById('ff-df')?.value || today();
-      const [desp, compr] = await Promise.all([api(`/api/despesas?data_ini=${di}&data_fim=${df}`), api(`/api/compras?data_ini=${di}&data_fim=${df}`)]);
+      const di = document.getElementById('ff-di')?.value || firstDay(); 
+      const df = document.getElementById('ff-df')?.value || today();
+      
+      const container = document.getElementById('fin-tab-content');
+      container.innerHTML = `
+        <div class="filters">
+          <div class="filter-group"><label>Data Início</label><input type="date" id="ff-di" value="${di}"></div>
+          <div class="filter-group"><label>Data Fim</label><input type="date" id="ff-df" value="${df}"></div>
+          <div style="display:flex;align-items:flex-end"><button class="btn btn-primary" onclick="loadFinanceiro()">🔍 Filtrar</button></div>
+        </div>
+        <div id="fin-data-content"><div class="empty"><div class="empty-icon">⏳</div><p>Carregando...</p></div></div>`;
+
+      const [desp, compr] = await Promise.all([
+        api(`/api/despesas?data_ini=${di}&data_fim=${df}`), 
+        api(`/api/compras?data_ini=${di}&data_fim=${df}`)
+      ]);
       if (!desp || !compr) return;
-      const td = desp.reduce((a, b) => a + b.valor, 0); const tc = compr.reduce((a, b) => a + b.total, 0);
+
+      const td = desp.reduce((a, b) => a + b.valor, 0); 
+      const tc = compr.reduce((a, b) => a + b.total, 0);
+      
       const dH = desp.length ? desp.map(d => `<tr><td>${d.data}</td><td>${d.descricao}</td><td>${d.categoria}</td><td class="mono text-red fw7">${fmt(d.valor)}</td><td>${d.forma_pagamento}</td><td><button class="btn btn-sm btn-danger" onclick="deletarDespesa(${d.id})">✕</button></td></tr>`).join('') : '<tr><td colspan="6" style="text-align:center;color:var(--text3)">Nenhuma</td></tr>';
       const cH = compr.length ? compr.map(c => `<tr><td>${c.data}</td><td>${c.fornecedor || '-'}</td><td class="mono">${c.numero_nota || '-'}</td><td class="mono text-orange fw7">${fmt(c.total)}</td><td>${c.observacao || '-'}</td></tr>`).join('') : '<tr><td colspan="5" style="text-align:center;color:var(--text3)">Nenhuma</td></tr>';
-      document.getElementById('fin-content').innerHTML = `
-    <div class="stats-grid" style="margin-bottom:16px">
-      <div class="stat-card red"><div class="stat-icon">📉</div><div class="stat-label">Total Despesas</div><div class="stat-value text-red">${fmt(td)}</div></div>
-      <div class="stat-card orange"><div class="stat-icon">📦</div><div class="stat-label">Total Compras</div><div class="stat-value text-orange">${fmt(tc)}</div></div>
-    </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
-      <div class="card"><div class="card-header">💸 Despesas</div><div class="tbl-wrap"><table><thead><tr><th>Data</th><th>Descrição</th><th>Categoria</th><th>Valor</th><th>Pagamento</th><th></th></tr></thead><tbody>${dH}</tbody><tfoot><tr><td colspan="3" style="padding:10px 14px;font-weight:700">Total</td><td class="mono text-red fw7" style="padding:10px 14px">${fmt(td)}</td><td colspan="2"></td></tr></tfoot></table></div></div>
-      <div class="card"><div class="card-header">🛒 Compras / Entradas</div><div class="tbl-wrap"><table><thead><tr><th>Data</th><th>Fornecedor</th><th>NF</th><th>Total</th><th>Obs</th></tr></thead><tbody>${cH}</tbody><tfoot><tr><td colspan="3" style="padding:10px 14px;font-weight:700">Total</td><td class="mono text-orange fw7" style="padding:10px 14px">${fmt(tc)}</td><td></td></tr></tfoot></table></div></div>
-    </div>`;
+      
+      document.getElementById('fin-data-content').innerHTML = `
+        <div class="stats-grid" style="margin-bottom:16px">
+          <div class="stat-card red"><div class="stat-icon">📉</div><div class="stat-label">Total Despesas</div><div class="stat-value text-red">${fmt(td)}</div></div>
+          <div class="stat-card orange"><div class="stat-icon">📦</div><div class="stat-label">Total Compras</div><div class="stat-value text-orange">${fmt(tc)}</div></div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+          <div class="card"><div class="card-header">💸 Despesas</div><div class="tbl-wrap"><table><thead><tr><th>Data</th><th>Descrição</th><th>Categoria</th><th>Valor</th><th>Pagamento</th><th></th></tr></thead><tbody>${dH}</tbody><tfoot><tr><td colspan="3" style="padding:10px 14px;font-weight:700">Total</td><td class="mono text-red fw7" style="padding:10px 14px">${fmt(td)}</td><td colspan="2"></td></tr></tfoot></table></div></div>
+          <div class="card"><div class="card-header">🛒 Compras / Entradas</div><div class="tbl-wrap"><table><thead><tr><th>Data</th><th>Fornecedor</th><th>NF</th><th>Total</th><th>Obs</th></tr></thead><tbody>${cH}</tbody><tfoot><tr><td colspan="3" style="padding:10px 14px;font-weight:700">Total</td><td class="mono text-orange fw7" style="padding:10px 14px">${fmt(tc)}</td><td></td></tr></tfoot></table></div></div>
+        </div>`;
+    }
+
+    async function loadReceberInsideFin() {
+      const container = document.getElementById('fin-tab-content');
+      const dash = await api('/api/contas_receber/dashboard');
+      const contas = await api('/api/contas_receber');
+      if (!dash || !contas) return;
+
+      const statsHtml = `
+      <div class="stats-grid" style="margin-bottom:16px">
+        <div class="stat-card blue"><div class="stat-icon">💰</div><div class="stat-label">Total a Receber</div><div class="stat-value">${fmt(dash.total_a_receber)}</div></div>
+        <div class="stat-card red"><div class="stat-icon">⚠️</div><div class="stat-label">Vencido</div><div class="stat-value text-red">${fmt(dash.vencido)}</div></div>
+        <div class="stat-card green"><div class="stat-icon">📈</div><div class="stat-label">Recebido Hoje</div><div class="stat-value text-green">${fmt(dash.recebido_hoje)}</div></div>
+        <div class="stat-card purple"><div class="stat-icon">📅</div><div class="stat-label">Recebido no Mês</div><div class="stat-value">${fmt(dash.recebido_mes)}</div></div>
+      </div>`;
+
+      let tableHtml = '<div class="card"><div class="tbl-wrap"><table><thead><tr><th>Vencimento</th><th>Cliente</th><th>Descrição</th><th>Valor Total</th><th>Recebido</th><th>Status</th><th>Ações</th></tr></thead><tbody>';
+      
+      if (contas.length === 0) {
+        tableHtml += '<tr><td colspan="7" style="text-align:center;color:var(--text3)">Nenhuma conta a receber encontrada</td></tr>';
+      } else {
+        contas.forEach(c => {
+          let badge = '<span class="badge badge-gray">PENDENTE</span>';
+          if (c.status === 'PAGA') badge = '<span class="badge badge-green">PAGA</span>';
+          else if (c.status === 'PARCIAL') badge = '<span class="badge badge-blue">PARCIAL</span>';
+          if (c.atrasada) badge += ' <span class="badge badge-red" style="margin-left:5px">ATRASADA</span>';
+          const dtVenc = c.data_vencimento.split('-').reverse().join('/');
+          tableHtml += `
+          <tr>
+            <td class="mono">${dtVenc}</td>
+            <td class="fw7">${c.cliente_nome || 'Desconhecido'}</td>
+            <td>${c.descricao}</td>
+            <td class="mono fw7">${fmt(c.valor_total)}</td>
+            <td class="mono text-green">${fmt(c.total_recebido)}</td>
+            <td>${badge}</td>
+            <td>
+              <div style="display:flex;gap:5px;align-items:center;">
+                <button class="btn btn-sm btn-success" onclick="openReceberPagamento(${c.id})">💰 Receber</button>
+                <button class="btn btn-sm" onclick="verDetalhesConta(${c.id})">👁️</button>
+                <button class="icon-btn danger" onclick="excluirConta(${c.id})">🗑️</button>
+              </div>
+            </td>
+          </tr>`;
+        });
+      }
+      tableHtml += '</tbody></table></div></div>';
+      container.innerHTML = statsHtml + tableHtml;
     }
 
     function novaDespesa() {
@@ -3262,60 +3416,6 @@
     // ══════════════════════════════════════════════════════════════
     // CONTAS A RECEBER
     // ══════════════════════════════════════════════════════════════
-    async function renderReceber() {
-      document.getElementById('topbar-actions').innerHTML = `
-        <button class="topbar-btn primary" onclick="openNovaContaReceber()">+ Nova Conta</button>
-      `;
-      document.getElementById('content').innerHTML = '<div class="empty"><div class="empty-icon">⏳</div><p>Carregando...</p></div>';
-      
-      const dash = await api('/api/contas_receber/dashboard');
-      const contas = await api('/api/contas_receber');
-      if (!dash || !contas) return;
-
-      const statsHtml = `
-      <div class="stats-grid">
-        <div class="stat-card blue"><div class="stat-icon">💰</div><div class="stat-label">Total a Receber</div><div class="stat-value">${fmt(dash.total_a_receber)}</div></div>
-        <div class="stat-card red"><div class="stat-icon">⚠️</div><div class="stat-label">Vencido</div><div class="stat-value text-red">${fmt(dash.vencido)}</div></div>
-        <div class="stat-card green"><div class="stat-icon">📈</div><div class="stat-label">Recebido Hoje</div><div class="stat-value text-green">${fmt(dash.recebido_hoje)}</div></div>
-        <div class="stat-card purple"><div class="stat-icon">📅</div><div class="stat-label">Recebido no Mês</div><div class="stat-value">${fmt(dash.recebido_mes)}</div></div>
-      </div>`;
-
-      let tableHtml = '<div class="card"><div class="tbl-wrap"><table><thead><tr><th>Vencimento</th><th>Cliente</th><th>Descrição</th><th>Valor Total</th><th>Recebido</th><th>Status</th><th>Ações</th></tr></thead><tbody>';
-      
-      if (contas.length === 0) {
-        tableHtml += '<tr><td colspan="7" style="text-align:center;color:var(--text3)">Nenhuma conta a receber encontrada</td></tr>';
-      } else {
-        contas.forEach(c => {
-          let badge = '<span class="badge badge-gray">PENDENTE</span>';
-          if (c.status === 'PAGA') badge = '<span class="badge badge-green">PAGA</span>';
-          else if (c.status === 'PARCIAL') badge = '<span class="badge badge-blue">PARCIAL</span>';
-          
-          if (c.atrasada) badge += ' <span class="badge badge-red" style="margin-left:5px">ATRASADA</span>';
-
-          const dtVenc = c.data_vencimento.split('-').reverse().join('/');
-          
-          tableHtml += `
-          <tr>
-            <td class="mono">${dtVenc}</td>
-            <td class="fw7">${c.cliente_nome || 'Desconhecido'}</td>
-            <td>${c.descricao}</td>
-            <td class="mono fw7">${fmt(c.valor_total)}</td>
-            <td class="mono text-green">${fmt(c.total_recebido)}</td>
-            <td>${badge}</td>
-            <td>
-              <div style="display:flex;gap:5px;align-items:center;">
-                <button class="btn btn-sm btn-success" style="padding:4px 8px;font-size:11px" onclick="openReceberPagamento(${c.id})" title="Registrar Pagamento">💰 Receber</button>
-                <button class="btn btn-sm" style="padding:4px 8px;font-size:11px" onclick="verDetalhesConta(${c.id})" title="Detalhes/Histórico">👁️</button>
-                <button class="icon-btn danger" style="width:24px;height:24px" onclick="excluirConta(${c.id})" title="Excluir">🗑️</button>
-              </div>
-            </td>
-          </tr>`;
-        });
-      }
-      tableHtml += '</tbody></table></div></div>';
-
-      document.getElementById('content').innerHTML = statsHtml + tableHtml;
-    }
 
     async function openNovaContaReceber() {
       allClientes = await api('/api/clientes') || [];
