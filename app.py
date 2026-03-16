@@ -1,6 +1,7 @@
 import os
 import sys
-import sqlite3
+import psycopg2
+from psycopg2.extras import DictCursor
 import hashlib
 import secrets
 import threading
@@ -9,6 +10,9 @@ from datetime import datetime, date
 from functools import wraps
 from flask import (Flask, render_template, request, jsonify, g,
                    session, redirect)
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # ── Path helpers ───────────────────────────────────────────────────────────
 def resource_path(rel):
@@ -22,23 +26,42 @@ def data_path(filename):
         base = os.path.dirname(os.path.abspath(__file__))
     return os.path.join(base, filename)
 
-DB_PATH = data_path('loja.db')
+DB_URL = os.getenv('DATABASE_URL', 'postgresql://postgres:postgrespassword@localhost:5432/superadmin_db')
 
 app = Flask(__name__,
             template_folder=resource_path('templates'),
             static_folder=data_path('static'))
-app.secret_key = 'gestao-loja-secret-key-2024-xK9pL'
+app.secret_key = os.getenv('SECRET_KEY', 'gestao-loja-secret-key-2024-xK9pL')
 
 ALL_MODULES = ['dashboard','pdv','vendas','os','produtos',
                'clientes','financeiro','relatorios','usuarios', 'settings']
 
 # ── Database ───────────────────────────────────────────────────────────────
+class PostgresWrapper:
+    def __init__(self, conn):
+        self.conn = conn
+
+    def execute(self, query, params=None):
+        # Transforma o placeholder do sqlite '?' para postgres '%s'
+        q = query.replace('?', '%s')
+        cur = self.conn.cursor()
+        if params is not None:
+            cur.execute(q, params)
+        else:
+            cur.execute(q)
+        return cur
+
+    def commit(self):
+        self.conn.commit()
+
+    def close(self):
+        self.conn.close()
+
 def get_db():
     if 'db' not in g:
-        g.db = sqlite3.connect(DB_PATH)
-        g.db.row_factory = sqlite3.Row
-        g.db.execute("PRAGMA journal_mode=WAL")
-        g.db.execute("PRAGMA foreign_keys=ON")
+        raw_db = psycopg2.connect(DB_URL, cursor_factory=DictCursor)
+        raw_db.autocommit = False
+        g.db = PostgresWrapper(raw_db)
     return g.db
 
 @app.teardown_appcontext
@@ -50,83 +73,95 @@ def hash_pw(pw):
     return hashlib.sha256(pw.encode()).hexdigest()
 
 def init_db():
-    conn = sqlite3.connect(DB_PATH)
-    conn.execute("PRAGMA foreign_keys=ON")
+    conn = get_db()
     cur = conn.cursor()
-    cur.executescript("""
-    CREATE TABLE IF NOT EXISTS usuarios (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        nome TEXT NOT NULL,
-        login TEXT NOT NULL UNIQUE,
-        senha_hash TEXT NOT NULL,
-        papel TEXT NOT NULL DEFAULT 'operador',
-        ativo INTEGER DEFAULT 1,
-        criado_em TEXT DEFAULT (datetime('now','localtime'))
-    );
-    CREATE TABLE IF NOT EXISTS usuario_permissoes (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        usuario_id INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
-        modulo TEXT NOT NULL,
-        UNIQUE(usuario_id, modulo)
+    
+    # We omit 'usuarios' table because we will use 'tenant_usuarios' from superadmin instead
+    # However, since this original app still depends on 'config' and standard modules,
+    # we inject 'tenant_id' inside the legacy tables.
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS config (
+        id SERIAL PRIMARY KEY,
+        tenant_id INTEGER REFERENCES tenants(id) ON DELETE CASCADE,
+        chave TEXT NOT NULL,
+        valor TEXT,
+        UNIQUE(tenant_id, chave)
     );
     CREATE TABLE IF NOT EXISTS categorias (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        nome TEXT NOT NULL UNIQUE
+        id SERIAL PRIMARY KEY,
+        tenant_id INTEGER REFERENCES tenants(id) ON DELETE CASCADE,
+        nome TEXT NOT NULL,
+        UNIQUE(tenant_id, nome)
     );
     CREATE TABLE IF NOT EXISTS produtos (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        codigo TEXT UNIQUE,
+        id SERIAL PRIMARY KEY,
+        tenant_id INTEGER REFERENCES tenants(id) ON DELETE CASCADE,
+        codigo TEXT,
         nome TEXT NOT NULL,
         descricao TEXT,
         categoria_id INTEGER REFERENCES categorias(id),
-        preco_custo REAL DEFAULT 0,
-        preco_venda REAL DEFAULT 0,
-        estoque INTEGER DEFAULT 0,
-        estoque_minimo INTEGER DEFAULT 0,
+        preco_custo DECIMAL(10,2) DEFAULT 0,
+        preco_venda DECIMAL(10,2) DEFAULT 0,
+        estoque DECIMAL DEFAULT 0,
+        estoque_minimo DECIMAL DEFAULT 0,
         unidade TEXT DEFAULT 'UN',
         ativo INTEGER DEFAULT 1,
-        criado_em TEXT DEFAULT (datetime('now','localtime'))
+        criado_em TIMESTAMP DEFAULT NOW(),
+        UNIQUE(tenant_id, codigo)
     );
     CREATE TABLE IF NOT EXISTS clientes (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id SERIAL PRIMARY KEY,
+        tenant_id INTEGER REFERENCES tenants(id) ON DELETE CASCADE,
         nome TEXT NOT NULL,
         cpf_cnpj TEXT,
         telefone TEXT,
         email TEXT,
         endereco TEXT,
-        criado_em TEXT DEFAULT (datetime('now','localtime'))
+        criado_em TIMESTAMP DEFAULT NOW()
+    );
+    CREATE TABLE IF NOT EXISTS vendedores (
+        id SERIAL PRIMARY KEY,
+        tenant_id INTEGER REFERENCES tenants(id) ON DELETE CASCADE,
+        nome TEXT NOT NULL,
+        ativo INTEGER DEFAULT 1,
+        criado_em TIMESTAMP DEFAULT NOW()
     );
     CREATE TABLE IF NOT EXISTS vendas (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        numero TEXT UNIQUE,
+        id SERIAL PRIMARY KEY,
+        tenant_id INTEGER REFERENCES tenants(id) ON DELETE CASCADE,
+        numero TEXT,
         cliente_id INTEGER REFERENCES clientes(id),
         cliente_nome TEXT,
         vendedor_id INTEGER REFERENCES vendedores(id),
         vendedor_nome TEXT,
-        subtotal REAL DEFAULT 0,
-        desconto REAL DEFAULT 0,
-        total REAL DEFAULT 0,
+        subtotal DECIMAL(10,2) DEFAULT 0,
+        desconto DECIMAL(10,2) DEFAULT 0,
+        total DECIMAL(10,2) DEFAULT 0,
         forma_pagamento TEXT DEFAULT 'DINHEIRO',
         status TEXT DEFAULT 'CONCLUIDA',
         observacao TEXT,
         motivo_cancelamento TEXT,
-        criado_em TEXT DEFAULT (datetime('now','localtime'))
+        criado_em TIMESTAMP DEFAULT NOW(),
+        UNIQUE(tenant_id, numero)
     );
     CREATE TABLE IF NOT EXISTS venda_itens (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id SERIAL PRIMARY KEY,
         venda_id INTEGER NOT NULL REFERENCES vendas(id) ON DELETE CASCADE,
         produto_id INTEGER REFERENCES produtos(id),
         produto_nome TEXT,
-        quantidade REAL NOT NULL,
-        preco_unitario REAL NOT NULL,
-        desconto REAL DEFAULT 0,
-        subtotal REAL NOT NULL
+        quantidade DECIMAL(10,2) NOT NULL,
+        preco_unitario DECIMAL(10,2) NOT NULL,
+        desconto DECIMAL(10,2) DEFAULT 0,
+        subtotal DECIMAL(10,2) NOT NULL
     );
     CREATE TABLE IF NOT EXISTS ordens_servico (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        numero TEXT UNIQUE,
+        id SERIAL PRIMARY KEY,
+        tenant_id INTEGER REFERENCES tenants(id) ON DELETE CASCADE,
+        numero TEXT,
         cliente_id INTEGER REFERENCES clientes(id),
         cliente_nome TEXT,
+        cliente_cpf TEXT,
+        cliente_telefone TEXT,
         equipamento TEXT,
         problema TEXT,
         diagnostico TEXT,
@@ -135,212 +170,104 @@ def init_db():
         status TEXT DEFAULT 'ABERTA',
         prioridade TEXT DEFAULT 'NORMAL',
         previsao TEXT,
-        valor_servico REAL DEFAULT 0,
-        valor_pecas REAL DEFAULT 0,
-        desconto REAL DEFAULT 0,
-        total REAL DEFAULT 0,
+        valor_servico DECIMAL(10,2) DEFAULT 0,
+        valor_pecas DECIMAL(10,2) DEFAULT 0,
+        desconto DECIMAL(10,2) DEFAULT 0,
+        total DECIMAL(10,2) DEFAULT 0,
         forma_pagamento TEXT DEFAULT 'DINHEIRO',
         observacao TEXT,
-        criado_em TEXT DEFAULT (datetime('now','localtime')),
-        atualizado_em TEXT DEFAULT (datetime('now','localtime')),
         checklist TEXT,
         senha_padrao TEXT,
         senha_pin TEXT,
-        cliente_cpf TEXT,
-        cliente_telefone TEXT
+        criado_em TIMESTAMP DEFAULT NOW(),
+        atualizado_em TIMESTAMP DEFAULT NOW(),
+        UNIQUE(tenant_id, numero)
     );
     CREATE TABLE IF NOT EXISTS os_itens (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id SERIAL PRIMARY KEY,
         os_id INTEGER NOT NULL REFERENCES ordens_servico(id) ON DELETE CASCADE,
         produto_id INTEGER REFERENCES produtos(id),
         produto_nome TEXT,
-        quantidade REAL NOT NULL,
-        preco_unitario REAL NOT NULL,
-        subtotal REAL NOT NULL
+        quantidade DECIMAL(10,2) NOT NULL,
+        preco_unitario DECIMAL(10,2) NOT NULL,
+        subtotal DECIMAL(10,2) NOT NULL
     );
     CREATE TABLE IF NOT EXISTS despesas (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id SERIAL PRIMARY KEY,
+        tenant_id INTEGER REFERENCES tenants(id) ON DELETE CASCADE,
         descricao TEXT NOT NULL,
         categoria TEXT DEFAULT 'GERAL',
-        valor REAL NOT NULL,
-        data TEXT NOT NULL,
+        valor DECIMAL(10,2) NOT NULL,
+        data DATE NOT NULL,
         forma_pagamento TEXT DEFAULT 'DINHEIRO',
         observacao TEXT,
-        criado_em TEXT DEFAULT (datetime('now','localtime'))
+        criado_em TIMESTAMP DEFAULT NOW()
     );
     CREATE TABLE IF NOT EXISTS compras (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id SERIAL PRIMARY KEY,
+        tenant_id INTEGER REFERENCES tenants(id) ON DELETE CASCADE,
         numero_nota TEXT,
         fornecedor TEXT,
-        total REAL DEFAULT 0,
-        data TEXT NOT NULL,
+        total DECIMAL(10,2) DEFAULT 0,
+        data DATE NOT NULL,
         observacao TEXT,
-        criado_em TEXT DEFAULT (datetime('now','localtime'))
+        criado_em TIMESTAMP DEFAULT NOW()
     );
     CREATE TABLE IF NOT EXISTS compra_itens (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id SERIAL PRIMARY KEY,
         compra_id INTEGER NOT NULL REFERENCES compras(id) ON DELETE CASCADE,
         produto_id INTEGER REFERENCES produtos(id),
         produto_nome TEXT,
-        quantidade REAL NOT NULL,
-        preco_unitario REAL NOT NULL,
-        subtotal REAL NOT NULL
-    );
-    CREATE TABLE IF NOT EXISTS config (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        chave TEXT UNIQUE NOT NULL,
-        valor TEXT
-    );
-    CREATE TABLE IF NOT EXISTS vendedores (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        nome TEXT NOT NULL,
-        ativo INTEGER DEFAULT 1,
-        criado_em TEXT DEFAULT (datetime('now','localtime'))
+        quantidade DECIMAL(10,2) NOT NULL,
+        preco_unitario DECIMAL(10,2) NOT NULL,
+        subtotal DECIMAL(10,2) NOT NULL
     );
     CREATE TABLE IF NOT EXISTS contas_receber (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id SERIAL PRIMARY KEY,
+        tenant_id INTEGER REFERENCES tenants(id) ON DELETE CASCADE,
         cliente_id INTEGER REFERENCES clientes(id),
         descricao TEXT NOT NULL,
-        valor_total REAL NOT NULL,
-        data_vencimento TEXT NOT NULL,
+        valor_total DECIMAL(10,2) NOT NULL,
+        data_vencimento DATE NOT NULL,
         status TEXT DEFAULT 'PENDENTE',
-        criado_em TEXT DEFAULT (datetime('now','localtime')),
-        atualizado_em TEXT DEFAULT (datetime('now','localtime'))
+        criado_em TIMESTAMP DEFAULT NOW(),
+        atualizado_em TIMESTAMP DEFAULT NOW()
     );
     CREATE TABLE IF NOT EXISTS recebimentos (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id SERIAL PRIMARY KEY,
         conta_id INTEGER NOT NULL REFERENCES contas_receber(id) ON DELETE CASCADE,
-        valor_pago REAL NOT NULL,
-        data_pagamento TEXT NOT NULL,
+        valor_pago DECIMAL(10,2) NOT NULL,
+        data_pagamento DATE NOT NULL,
         forma_pagamento TEXT DEFAULT 'DINHEIRO',
-        criado_em TEXT DEFAULT (datetime('now','localtime'))
+        criado_em TIMESTAMP DEFAULT NOW()
     );
     """)
     conn.commit()
 
-    # Admin user seed
-    if not conn.execute("SELECT id FROM usuarios WHERE login='admin'").fetchone():
-        cur2 = conn.execute(
-            "INSERT INTO usuarios(nome,login,senha_hash,papel) VALUES(?,?,?,?)",
-            ('Administrador', 'admin', hash_pw('admin123'), 'admin')
-        )
-        uid = cur2.lastrowid
-        for m in ALL_MODULES:
-            conn.execute("INSERT OR IGNORE INTO usuario_permissoes(usuario_id,modulo) VALUES(?,?)", (uid, m))
-        conn.commit()
-    
-    # Migrations
-    try: db_migrate(conn)
-    except: pass
-    
-    conn.commit()
-
-    for c in ['Eletrônicos','Informática','Celulares','Acessórios','Peças','Serviços','Outros']:
-        try: conn.execute("INSERT INTO categorias(nome) VALUES(?)", (c,))
-        except: pass
-    conn.commit()
-
-    # Migrações (para bases existentes)
-    try: conn.execute("ALTER TABLE ordens_servico ADD COLUMN checklist TEXT")
-    except: pass
-    try: conn.execute("ALTER TABLE ordens_servico ADD COLUMN senha_padrao TEXT")
-    except: pass
-    try: conn.execute("ALTER TABLE ordens_servico ADD COLUMN senha_pin TEXT")
-    except: pass
-    conn.commit()
+    # We do NOT run sqlite migrations like 'db_migrate(conn)' or seed static categories here.
+    # Seed categories can be done dynamically when creating a tenant inside the superadmin.
     conn.close()
 
-def db_migrate(conn):
-    # Add cliente_cpf and cliente_telefone to ordens_servico if they don't exist
-    cols = [r[1] for r in conn.execute("PRAGMA table_info(ordens_servico)").fetchall()]
-    if 'cliente_cpf' not in cols:
-        conn.execute("ALTER TABLE ordens_servico ADD COLUMN cliente_cpf TEXT")
-    if 'cliente_telefone' not in cols:
-        conn.execute("ALTER TABLE ordens_servico ADD COLUMN cliente_telefone TEXT")
-    
-    # Add vendedor_id and vendedor_nome to vendas
-    cols_vendas = [r[1] for r in conn.execute("PRAGMA table_info(vendas)").fetchall()]
-    if 'vendedor_id' not in cols_vendas:
-        conn.execute("ALTER TABLE vendas ADD COLUMN vendedor_id INTEGER REFERENCES vendedores(id)")
-    if 'vendedor_nome' not in cols_vendas:
-        conn.execute("ALTER TABLE vendas ADD COLUMN vendedor_nome TEXT")
-
-    # Create config table if it doesn't exist
-    conn.execute("CREATE TABLE IF NOT EXISTS config (id INTEGER PRIMARY KEY AUTOINCREMENT, chave TEXT UNIQUE NOT NULL, valor TEXT)")
-
-    # Create vendedores table if it doesn't exist
-    conn.execute("CREATE TABLE IF NOT EXISTS vendedores (id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT NOT NULL, ativo INTEGER DEFAULT 1, criado_em TEXT DEFAULT (datetime('now','localtime')))")
-
-    # Create contas_receber and recebimentos tables if they don't exist
-    conn.execute('''CREATE TABLE IF NOT EXISTS contas_receber (
-        id INTEGER PRIMARY KEY AUTOINCREMENT, cliente_id INTEGER REFERENCES clientes(id),
-        descricao TEXT NOT NULL, valor_total REAL NOT NULL, data_vencimento TEXT NOT NULL,
-        status TEXT DEFAULT 'PENDENTE', criado_em TEXT DEFAULT (datetime('now','localtime')), atualizado_em TEXT DEFAULT (datetime('now','localtime')))''')
-    conn.execute('''CREATE TABLE IF NOT EXISTS recebimentos (
-        id INTEGER PRIMARY KEY AUTOINCREMENT, conta_id INTEGER NOT NULL REFERENCES contas_receber(id) ON DELETE CASCADE,
-        valor_pago REAL NOT NULL, data_pagamento TEXT NOT NULL, forma_pagamento TEXT DEFAULT 'DINHEIRO',
-        criado_em TEXT DEFAULT (datetime('now','localtime')))''')
-
-    # Add motivo_cancelamento to vendas
-    if 'motivo_cancelamento' not in cols_vendas:
-        conn.execute("ALTER TABLE vendas ADD COLUMN motivo_cancelamento TEXT")
-
-def run_setup_wizard():
-    conn = sqlite3.connect(DB_PATH)
-    cur = conn.cursor()
-    
-    # Check if we already have basic config
-    has_config = cur.execute("SELECT COUNT(*) FROM config").fetchone()[0]
-    if has_config > 0:
-        conn.close()
-        return
-
-    print("\n" + "="*50)
-    print("   ASSISTENTE DE CONFIGURACAO INICIAL")
-    print("="*50)
-    print("Bem-vindo ao GestaoLoja! Por favor, informe os dados da sua loja:")
-    
-    shop_name = input("Nome da Loja: ").strip() or "Minha Loja"
-    shop_addr = input("Endereco: ").strip() or "Endereco nao cadastrado"
-    shop_wpp = input("WhatsApp: ").strip() or "(00) 00000-0000"
-    shop_insta = input("Instagram: ").strip() or "@sualoja"
-    
-    configs = [
-        ('shop_name', shop_name),
-        ('shop_address', shop_addr),
-        ('shop_whatsapp', shop_wpp),
-        ('shop_instagram', shop_insta)
-    ]
-    
-    for k, v in configs:
-        cur.execute("INSERT OR REPLACE INTO config(chave, valor) VALUES(?,?)", (k, v))
-        
-    conn.commit()
-    conn.close()
-    print("\n[OK] Configuracoes salvas com sucesso!")
-    print("="*50 + "\n")
-
-
-
-
-# ── Helpers ────────────────────────────────────────────────────────────────
+# Nenhuma db_migrate() ou run_setup_wizard() necessária no modelo SaaS, 
+# pois isso é gerido pelo Painel do Superadmin agora.# ── Helpers ────────────────────────────────────────────────────────────────
 def rows_to_list(rows):
     return [dict(r) for r in rows]
 
 def next_number(prefix, table, col):
     db = get_db()
-    n = (db.execute(f"SELECT COUNT(*) as c FROM {table}").fetchone()['c'] or 0) + 1
+    tenant_id = session.get('tenant_id')
+    n = (db.execute(f"SELECT COUNT(*) as c FROM {table} WHERE tenant_id=%s", (tenant_id,)).fetchone()['c'] or 0) + 1
     return f"{prefix}{str(n).zfill(6)}"
 
 def get_user_permissions(user_id):
-    db = get_db()
-    return [r['modulo'] for r in db.execute(
-        "SELECT modulo FROM usuario_permissoes WHERE usuario_id=?", (user_id,)).fetchall()]
+    # No SQL superadmin original model, permissions are defined by the global role.
+    # Because we migrated to `tenant_usuarios`, we will simplify it relying on their 'papel'.
+    return ALL_MODULES
 
 def require_auth(f):
     @wraps(f)
     def decorated(*args, **kwargs):
-        if not session.get('user_id'):
+        if not session.get('tenant_id') or not session.get('user_id'):
             if request.path.startswith('/api/'):
                 return jsonify({'error':'unauthorized'}), 401
             return redirect('/login')
@@ -375,8 +302,10 @@ def api_save_config():
         return jsonify({'ok': False, 'error': 'Acesso negado'}), 403
     db = get_db()
     data = request.json
+    tenant_id = session.get('tenant_id')
     for k, v in data.items():
-        db.execute("INSERT OR REPLACE INTO config(chave, valor) VALUES(?,?)", (k, v))
+        db.execute("INSERT INTO config (tenant_id, chave, valor) VALUES (?, ?, ?) ON CONFLICT (tenant_id, chave) DO UPDATE SET valor = EXCLUDED.valor", 
+                   (tenant_id, k, v))
     db.commit()
     return jsonify({'ok': True})
 
@@ -396,17 +325,26 @@ def api_login():
     if not login or not senha:
         return jsonify({'ok': False, 'message': 'Preencha login e senha'}), 400
     db = get_db()
+    
+    # Busca agora em tenant_usuarios global do painel
     user = db.execute(
-        "SELECT * FROM usuarios WHERE login=? AND senha_hash=? AND ativo=1",
+        "SELECT * FROM tenant_usuarios WHERE login=? AND senha_hash=? AND ativo=True",
         (login, hash_pw(senha))).fetchone()
+        
     if not user:
-        return jsonify({'ok': False, 'message': 'Login ou senha incorretos'}), 401
-    perms = get_user_permissions(user['id'])
+        return jsonify({'ok': False, 'message': 'Login ou senha incorretos ou acessos desativados'}), 401
+    
+    # Checa também se o tenant dele está ativo
+    tenant = db.execute("SELECT status FROM tenants WHERE id=?", (user['tenant_id'],)).fetchone()
+    if not tenant or tenant['status'] != 'ATIVO':
+        return jsonify({'ok': False, 'message': 'Sua loja está bloqueada no sistema. Contate o administrador.'}), 403
+        
     session['user_id']    = user['id']
+    session['tenant_id']  = user['tenant_id'] # Guardando o núcleo da loja
     session['user_nome']  = user['nome']
     session['papel']      = user['papel']
-    session['permissions']= perms
-    return jsonify({'ok': True, 'nome': user['nome'], 'papel': user['papel'], 'permissions': perms})
+    session['permissions']= ALL_MODULES
+    return jsonify({'ok': True, 'nome': user['nome'], 'papel': user['papel'], 'permissions': ALL_MODULES})
 
 @app.route('/api/auth/logout', methods=['POST'])
 def api_logout():
@@ -418,23 +356,25 @@ def api_me():
     uid = session.get('user_id')
     if not uid: return jsonify({'logged_in': False}), 401
     return jsonify({'logged_in': True, 'id': uid,
+                    'tenant_id': session.get('tenant_id'),
                     'nome': session.get('user_nome'),
                     'papel': session.get('papel'),
-                    'permissions': session.get('permissions', [])})
+                    'permissions': ALL_MODULES})
 
 @app.route('/api/auth/change_password', methods=['POST'])
 @require_auth
 def api_change_password():
     d = request.json or {}
     uid = session['user_id']
+    tid = session['tenant_id']
     db = get_db()
-    user = db.execute("SELECT * FROM usuarios WHERE id=?", (uid,)).fetchone()
+    user = db.execute("SELECT * FROM tenant_usuarios WHERE id=? AND tenant_id=?", (uid, tid)).fetchone()
     if user['senha_hash'] != hash_pw(d.get('senha_atual','')):
         return jsonify({'ok': False, 'message': 'Senha atual incorreta'}), 400
     nova = d.get('nova_senha','')
     if len(nova) < 4:
         return jsonify({'ok': False, 'message': 'Nova senha: mínimo 4 caracteres'}), 400
-    db.execute("UPDATE usuarios SET senha_hash=? WHERE id=?", (hash_pw(nova), uid))
+    db.execute("UPDATE tenant_usuarios SET senha_hash=? WHERE id=?", (hash_pw(nova), uid))
     db.commit()
     return jsonify({'ok': True})
 
@@ -454,11 +394,12 @@ def index():
 @require_module('usuarios')
 def api_usuarios_list():
     db = get_db()
+    tid = session.get('tenant_id')
     users = rows_to_list(db.execute(
-        "SELECT id,nome,login,papel,ativo,criado_em FROM usuarios WHERE ativo=1 ORDER BY nome").fetchall())
+        "SELECT id,nome,login,papel,ativo,criado_em FROM tenant_usuarios WHERE tenant_id=? AND ativo=True ORDER BY nome", (tid,)).fetchall())
+    # Fakes permissions that frontend expects to render properly
     for u in users:
-        u['permissoes'] = [r['modulo'] for r in db.execute(
-            "SELECT modulo FROM usuario_permissoes WHERE usuario_id=?", (u['id'],)).fetchall()]
+        u['permissoes'] = ALL_MODULES
     return jsonify(users)
 
 @app.route('/api/usuarios', methods=['POST'])
@@ -468,16 +409,14 @@ def api_usuario_create():
     db = get_db()
     d = request.json or {}
     login = (d.get('login') or '').strip()
+    tid = session['tenant_id']
     if not login or not d.get('nome') or not d.get('senha'):
         return jsonify({'ok': False, 'message': 'Nome, login e senha são obrigatórios'}), 400
-    if db.execute("SELECT id FROM usuarios WHERE login=?", (login,)).fetchone():
-        return jsonify({'ok': False, 'message': 'Login já existe'}), 400
-    cur = db.execute("INSERT INTO usuarios(nome,login,senha_hash,papel) VALUES(?,?,?,?)",
-                     (d['nome'], login, hash_pw(d['senha']), d.get('papel','operador')))
-    uid = cur.lastrowid
-    perms = ALL_MODULES if d.get('papel') == 'admin' else d.get('permissoes', [])
-    for m in perms:
-        db.execute("INSERT OR IGNORE INTO usuario_permissoes(usuario_id,modulo) VALUES(?,?)", (uid, m))
+    if db.execute("SELECT id FROM tenant_usuarios WHERE tenant_id=? AND login=?", (tid, login)).fetchone():
+        return jsonify({'ok': False, 'message': 'Login já existe na loja'}), 400
+    cur = db.execute("INSERT INTO tenant_usuarios (tenant_id,nome,login,senha_hash,papel) VALUES(?,?,?,?,?) RETURNING id",
+                     (tid, d['nome'], login, hash_pw(d['senha']), d.get('papel','operador')))
+    uid = cur.fetchone()['id']
     db.commit()
     return jsonify({'ok': True, 'id': uid})
 
@@ -487,25 +426,23 @@ def api_usuario_create():
 def api_usuario_update(uid):
     db = get_db()
     d = request.json or {}
-    admins = db.execute("SELECT COUNT(*) as c FROM usuarios WHERE papel='admin' AND ativo=1").fetchone()['c']
-    target = db.execute("SELECT papel FROM usuarios WHERE id=?", (uid,)).fetchone()
+    tid = session['tenant_id']
+    admins = db.execute("SELECT COUNT(*) as c FROM tenant_usuarios WHERE tenant_id=? AND papel='admin' AND ativo=True", (tid,)).fetchone()['c']
+    target = db.execute("SELECT papel FROM tenant_usuarios WHERE tenant_id=? AND id=?", (tid, uid)).fetchone()
     if target and target['papel']=='admin' and d.get('papel')!='admin' and admins<=1:
-        return jsonify({'ok': False, 'message': 'Não é possível remover o último administrador'}), 400
-    db.execute("UPDATE usuarios SET nome=?,login=?,papel=?,ativo=? WHERE id=?",
-               (d['nome'], d['login'], d.get('papel','operador'), d.get('ativo',1), uid))
+        return jsonify({'ok': False, 'message': 'Não é possível remover o último administrador da loja'}), 400
+    
+    ativo = True if str(d.get('ativo', 1)) in ['1', 'True', 'true'] else False
+    db.execute("UPDATE tenant_usuarios SET nome=?,login=?,papel=?,ativo=? WHERE tenant_id=? AND id=?",
+               (d['nome'], d['login'], d.get('papel','operador'), ativo, tid, uid))
     if d.get('senha'):
         if len(d['senha']) < 4:
             return jsonify({'ok': False, 'message': 'Senha: mínimo 4 caracteres'}), 400
-        db.execute("UPDATE usuarios SET senha_hash=? WHERE id=?", (hash_pw(d['senha']), uid))
-    db.execute("DELETE FROM usuario_permissoes WHERE usuario_id=?", (uid,))
-    perms = ALL_MODULES if d.get('papel') == 'admin' else d.get('permissoes', [])
-    for m in perms:
-        db.execute("INSERT OR IGNORE INTO usuario_permissoes(usuario_id,modulo) VALUES(?,?)", (uid, m))
+        db.execute("UPDATE tenant_usuarios SET senha_hash=? WHERE tenant_id=? AND id=?", (hash_pw(d['senha']), tid, uid))
     db.commit()
     if uid == session['user_id']:
         session['user_nome']   = d['nome']
         session['papel']       = d.get('papel','operador')
-        session['permissions'] = perms
     return jsonify({'ok': True})
 
 @app.route('/api/usuarios/<int:uid>', methods=['DELETE'])
@@ -515,11 +452,12 @@ def api_usuario_delete(uid):
     if uid == session['user_id']:
         return jsonify({'ok': False, 'message': 'Não pode excluir o próprio usuário'}), 400
     db = get_db()
-    admins = db.execute("SELECT COUNT(*) as c FROM usuarios WHERE papel='admin' AND ativo=1").fetchone()['c']
-    target = db.execute("SELECT papel FROM usuarios WHERE id=?", (uid,)).fetchone()
+    tid = session['tenant_id']
+    admins = db.execute("SELECT COUNT(*) as c FROM tenant_usuarios WHERE tenant_id=? AND papel='admin' AND ativo=True", (tid,)).fetchone()['c']
+    target = db.execute("SELECT papel FROM tenant_usuarios WHERE tenant_id=? AND id=?", (tid, uid)).fetchone()
     if target and target['papel']=='admin' and admins<=1:
-        return jsonify({'ok': False, 'message': 'Não é possível remover o último administrador'}), 400
-    db.execute("UPDATE usuarios SET ativo=0, login=login || '_del_' || id WHERE id=?", (uid,))
+        return jsonify({'ok': False, 'message': 'Não é possível remover o último administrador da loja'}), 400
+    db.execute("UPDATE tenant_usuarios SET ativo=False, login=login || '_del_' || id::text WHERE tenant_id=? AND id=?", (tid, uid))
     db.commit()
     return jsonify({'ok': True})
 
@@ -531,20 +469,21 @@ def api_usuario_delete(uid):
 @require_module('dashboard')
 def api_dashboard():
     db = get_db()
+    tid = session['tenant_id']
     hoje = date.today().isoformat()
     mes_ini = date.today().replace(day=1).isoformat()
-    v_hoje  = db.execute("SELECT COALESCE(SUM(total),0) as t FROM vendas WHERE date(criado_em)=?", (hoje,)).fetchone()['t']
-    v_mes   = db.execute("SELECT COALESCE(SUM(total),0) as t FROM vendas WHERE date(criado_em)>=?", (mes_ini,)).fetchone()['t']
-    v_count = db.execute("SELECT COUNT(*) as c FROM vendas WHERE date(criado_em)>=?", (mes_ini,)).fetchone()['c']
-    os_ab   = db.execute("SELECT COUNT(*) as c FROM ordens_servico WHERE status NOT IN ('CONCLUIDA','CANCELADA')").fetchone()['c']
-    os_mes  = db.execute("SELECT COALESCE(SUM(total),0) as t FROM ordens_servico WHERE date(criado_em)>=? AND status='CONCLUIDA'", (mes_ini,)).fetchone()['t']
-    desp    = db.execute("SELECT COALESCE(SUM(valor),0) as t FROM despesas WHERE date(data)>=?", (mes_ini,)).fetchone()['t']
-    prod_bx = db.execute("SELECT COUNT(*) as c FROM produtos WHERE estoque<=estoque_minimo AND ativo=1").fetchone()['c']
+    v_hoje  = db.execute("SELECT COALESCE(SUM(total),0) as t FROM vendas WHERE tenant_id=? AND date(criado_em)=?", (tid, hoje)).fetchone()['t']
+    v_mes   = db.execute("SELECT COALESCE(SUM(total),0) as t FROM vendas WHERE tenant_id=? AND date(criado_em)>=?", (tid, mes_ini)).fetchone()['t']
+    v_count = db.execute("SELECT COUNT(*) as c FROM vendas WHERE tenant_id=? AND date(criado_em)>=?", (tid, mes_ini)).fetchone()['c']
+    os_ab   = db.execute("SELECT COUNT(*) as c FROM ordens_servico WHERE tenant_id=? AND status NOT IN ('CONCLUIDA','CANCELADA')", (tid,)).fetchone()['c']
+    os_mes  = db.execute("SELECT COALESCE(SUM(total),0) as t FROM ordens_servico WHERE tenant_id=? AND date(criado_em)>=? AND status='CONCLUIDA'", (tid, mes_ini)).fetchone()['t']
+    desp    = db.execute("SELECT COALESCE(SUM(valor),0) as t FROM despesas WHERE tenant_id=? AND date(data)>=?", (tid, mes_ini)).fetchone()['t']
+    prod_bx = db.execute("SELECT COUNT(*) as c FROM produtos WHERE tenant_id=? AND estoque<=estoque_minimo AND ativo=1", (tid,)).fetchone()['c']
     receita = v_mes + os_mes
     v7d = rows_to_list(db.execute(
-        "SELECT date(criado_em) as dia,COALESCE(SUM(total),0) as total FROM vendas WHERE date(criado_em)>=date('now','-6 days') GROUP BY dia ORDER BY dia").fetchall())
+        "SELECT date(criado_em) as dia,COALESCE(SUM(total),0) as total FROM vendas WHERE tenant_id=? AND date(criado_em)>=date('now','-6 days') GROUP BY dia ORDER BY dia", (tid,)).fetchall())
     top = rows_to_list(db.execute(
-        "SELECT p.nome,SUM(vi.quantidade) as qtd,SUM(vi.subtotal) as total FROM venda_itens vi JOIN produtos p ON p.id=vi.produto_id GROUP BY vi.produto_id ORDER BY qtd DESC LIMIT 5").fetchall())
+        "SELECT p.nome,SUM(vi.quantidade) as qtd,SUM(vi.subtotal) as total FROM venda_itens vi JOIN produtos p ON p.id=vi.produto_id WHERE p.tenant_id=? GROUP BY vi.produto_id ORDER BY qtd DESC LIMIT 5", (tid,)).fetchall())
     return jsonify({'vendas_hoje':v_hoje,'vendas_mes':v_mes,'vendas_count':v_count,
                     'os_abertas':os_ab,'os_mes':os_mes,'despesas_mes':desp,
                     'receita_mes':receita,'lucro_mes':receita-desp,
@@ -556,7 +495,8 @@ def api_dashboard():
 @app.route('/api/categorias')
 @require_auth
 def api_categorias():
-    return jsonify(rows_to_list(get_db().execute("SELECT * FROM categorias ORDER BY nome").fetchall()))
+    tid = session['tenant_id']
+    return jsonify(rows_to_list(get_db().execute("SELECT * FROM categorias WHERE tenant_id=? ORDER BY nome", (tid,)).fetchall()))
 
 # ══════════════════════════════════════════════════════════════════════════
 # API – Produtos
@@ -566,7 +506,8 @@ def api_categorias():
 @require_module('produtos', 'pdv', 'vendas')
 def api_produtos_list():
     db=get_db(); q=request.args.get('q',''); cat=request.args.get('categoria',''); baixo=request.args.get('estoque_baixo','')
-    sql="SELECT p.*,c.nome as categoria_nome FROM produtos p LEFT JOIN categorias c ON c.id=p.categoria_id WHERE p.ativo=1"; params=[]
+    tid=session['tenant_id']
+    sql="SELECT p.*,c.nome as categoria_nome FROM produtos p LEFT JOIN categorias c ON c.id=p.categoria_id WHERE p.tenant_id=? AND p.ativo=1"; params=[tid]
     if q: sql+=" AND (p.nome LIKE ? OR p.codigo LIKE ?)"; params+=[f'%{q}%']*2
     if cat: sql+=" AND p.categoria_id=?"; params.append(cat)
     if baixo: sql+=" AND p.estoque<=p.estoque_minimo"
@@ -576,25 +517,26 @@ def api_produtos_list():
 @require_auth
 @require_module('produtos')
 def api_produto_create():
-    db=get_db(); d=request.json
-    db.execute("INSERT INTO produtos(codigo,nome,descricao,categoria_id,preco_custo,preco_venda,estoque,estoque_minimo,unidade) VALUES(?,?,?,?,?,?,?,?,?)",
-               (d.get('codigo'),d['nome'],d.get('descricao'),d.get('categoria_id'),d.get('preco_custo',0),d.get('preco_venda',0),d.get('estoque',0),d.get('estoque_minimo',0),d.get('unidade','UN')))
+    db=get_db(); d=request.json; tid=session['tenant_id']
+    db.execute("INSERT INTO produtos(tenant_id,codigo,nome,descricao,categoria_id,preco_custo,preco_venda,estoque,estoque_minimo,unidade) VALUES(?,?,?,?,?,?,?,?,?,?)",
+               (tid,d.get('codigo'),d['nome'],d.get('descricao'),d.get('categoria_id'),d.get('preco_custo',0),d.get('preco_venda',0),d.get('estoque',0),d.get('estoque_minimo',0),d.get('unidade','UN')))
     db.commit(); return jsonify({'ok':True})
 
 @app.route('/api/produtos/<int:pid>', methods=['PUT'])
 @require_auth
 @require_module('produtos')
 def api_produto_update(pid):
-    db=get_db(); d=request.json
-    db.execute("UPDATE produtos SET codigo=?,nome=?,descricao=?,categoria_id=?,preco_custo=?,preco_venda=?,estoque=?,estoque_minimo=?,unidade=? WHERE id=?",
-               (d.get('codigo'),d['nome'],d.get('descricao'),d.get('categoria_id'),d.get('preco_custo',0),d.get('preco_venda',0),d.get('estoque',0),d.get('estoque_minimo',0),d.get('unidade','UN'),pid))
+    db=get_db(); d=request.json; tid=session['tenant_id']
+    db.execute("UPDATE produtos SET codigo=?,nome=?,descricao=?,categoria_id=?,preco_custo=?,preco_venda=?,estoque=?,estoque_minimo=?,unidade=? WHERE tenant_id=? AND id=?",
+               (d.get('codigo'),d['nome'],d.get('descricao'),d.get('categoria_id'),d.get('preco_custo',0),d.get('preco_venda',0),d.get('estoque',0),d.get('estoque_minimo',0),d.get('unidade','UN'),tid,pid))
     db.commit(); return jsonify({'ok':True})
 
 @app.route('/api/produtos/<int:pid>', methods=['DELETE'])
 @require_auth
 @require_module('produtos')
 def api_produto_delete(pid):
-    db=get_db(); db.execute("UPDATE produtos SET ativo=0 WHERE id=?",(pid,)); db.commit(); return jsonify({'ok':True})
+    db=get_db(); tid=session['tenant_id']
+    db.execute("UPDATE produtos SET ativo=0 WHERE tenant_id=? AND id=?",(tid,pid)); db.commit(); return jsonify({'ok':True})
 
 # ══════════════════════════════════════════════════════════════════════════
 # API – Clientes
@@ -603,8 +545,8 @@ def api_produto_delete(pid):
 @require_auth
 @require_module('clientes', 'pdv', 'vendas')
 def api_clientes_list():
-    db=get_db(); q=request.args.get('q','')
-    sql="SELECT * FROM clientes WHERE 1=1"; params=[]
+    db=get_db(); q=request.args.get('q',''); tid=session['tenant_id']
+    sql="SELECT * FROM clientes WHERE tenant_id=?"; params=[tid]
     if q: sql+=" AND (nome LIKE ? OR cpf_cnpj LIKE ? OR telefone LIKE ?)"; params+=[f'%{q}%']*3
     return jsonify(rows_to_list(db.execute(sql+' ORDER BY nome',params).fetchall()))
 
@@ -612,23 +554,24 @@ def api_clientes_list():
 @require_auth
 @require_module('clientes')
 def api_cliente_create():
-    db=get_db(); d=request.json
-    db.execute("INSERT INTO clientes(nome,cpf_cnpj,telefone,email,endereco) VALUES(?,?,?,?,?)",
-               (d['nome'],d.get('cpf_cnpj'),d.get('telefone'),d.get('email'),d.get('endereco'))); db.commit(); return jsonify({'ok':True})
+    db=get_db(); d=request.json; tid=session['tenant_id']
+    db.execute("INSERT INTO clientes(tenant_id,nome,cpf_cnpj,telefone,email,endereco) VALUES(?,?,?,?,?,?)",
+               (tid,d['nome'],d.get('cpf_cnpj'),d.get('telefone'),d.get('email'),d.get('endereco'))); db.commit(); return jsonify({'ok':True})
 
 @app.route('/api/clientes/<int:cid>', methods=['PUT'])
 @require_auth
 @require_module('clientes')
 def api_cliente_update(cid):
-    db=get_db(); d=request.json
-    db.execute("UPDATE clientes SET nome=?,cpf_cnpj=?,telefone=?,email=?,endereco=? WHERE id=?",
-               (d['nome'],d.get('cpf_cnpj'),d.get('telefone'),d.get('email'),d.get('endereco'),cid)); db.commit(); return jsonify({'ok':True})
+    db=get_db(); d=request.json; tid=session['tenant_id']
+    db.execute("UPDATE clientes SET nome=?,cpf_cnpj=?,telefone=?,email=?,endereco=? WHERE tenant_id=? AND id=?",
+               (d['nome'],d.get('cpf_cnpj'),d.get('telefone'),d.get('email'),d.get('endereco'),tid,cid)); db.commit(); return jsonify({'ok':True})
 
 @app.route('/api/clientes/<int:cid>', methods=['DELETE'])
 @require_auth
 @require_module('clientes')
 def api_cliente_delete(cid):
-    db=get_db(); db.execute("DELETE FROM clientes WHERE id=?",(cid,)); db.commit(); return jsonify({'ok':True})
+    db=get_db(); tid=session['tenant_id']
+    db.execute("DELETE FROM clientes WHERE tenant_id=? AND id=?",(tid,cid)); db.commit(); return jsonify({'ok':True})
 
 # ══════════════════════════════════════════════════════════════════════════
 # API – Vendas
@@ -639,7 +582,8 @@ def api_cliente_delete(cid):
 def api_vendas_list():
     db=get_db(); di=request.args.get('data_ini',''); df=request.args.get('data_fim','')
     status=request.args.get('status',''); q=request.args.get('q','')
-    sql="SELECT * FROM vendas WHERE 1=1"; params=[]
+    tid=session['tenant_id']
+    sql="SELECT * FROM vendas WHERE tenant_id=?"; params=[tid]
     if di: sql+=" AND date(criado_em)>=?"; params.append(di)
     if df: sql+=" AND date(criado_em)<=?"; params.append(df)
     if status: sql+=" AND status=?"; params.append(status)
@@ -650,33 +594,36 @@ def api_vendas_list():
 @require_auth
 @require_module('pdv')
 def api_venda_create():
-    db=get_db(); d=request.json; numero=next_number('VND','vendas','numero')
-    cur=db.execute("INSERT INTO vendas(numero,cliente_id,cliente_nome,vendedor_id,vendedor_nome,subtotal,desconto,total,forma_pagamento,status,observacao) VALUES(?,?,?,?,?,?,?,?,?,?,?)",
-                   (numero,d.get('cliente_id'),d.get('cliente_nome',''),d.get('vendedor_id'),d.get('vendedor_nome',''),d.get('subtotal',0),d.get('desconto',0),d.get('total',0),d.get('forma_pagamento','DINHEIRO'),d.get('status','CONCLUIDA'),d.get('observacao','')))
-    vid=cur.lastrowid
+    db=get_db(); d=request.json; numero=next_number('VND','vendas','numero'); tid=session['tenant_id']
+    cur=db.execute("INSERT INTO vendas(tenant_id,numero,cliente_id,cliente_nome,vendedor_id,vendedor_nome,subtotal,desconto,total,forma_pagamento,status,observacao) VALUES(?,?,?,?,?,?,?,?,?,?,?,?) RETURNING id",
+                   (tid,numero,d.get('cliente_id'),d.get('cliente_nome',''),d.get('vendedor_id'),d.get('vendedor_nome',''),d.get('subtotal',0),d.get('desconto',0),d.get('total',0),d.get('forma_pagamento','DINHEIRO'),d.get('status','CONCLUIDA'),d.get('observacao','')))
+    vid=cur.fetchone()['id']
     for it in d.get('itens',[]):
         db.execute("INSERT INTO venda_itens(venda_id,produto_id,produto_nome,quantidade,preco_unitario,desconto,subtotal) VALUES(?,?,?,?,?,?,?)",
                    (vid,it.get('produto_id'),it['produto_nome'],it['quantidade'],it['preco_unitario'],it.get('desconto',0),it['subtotal']))
-        if it.get('produto_id'): db.execute("UPDATE produtos SET estoque=estoque-? WHERE id=?",(it['quantidade'],it['produto_id']))
+        if it.get('produto_id'): db.execute("UPDATE produtos SET estoque=estoque-? WHERE tenant_id=? AND id=?",(it['quantidade'],tid,it['produto_id']))
     db.commit(); return jsonify({'ok':True,'numero':numero,'id':vid})
 
 @app.route('/api/vendas/<int:vid>', methods=['GET'])
 @require_auth
 @require_module('vendas')
 def api_venda_get(vid):
-    db=get_db()
-    v=db.execute("SELECT * FROM vendas WHERE id=?",(vid,)).fetchone()
+    db=get_db(); tid=session['tenant_id']
+    v=db.execute("SELECT * FROM vendas WHERE tenant_id=? AND id=?",(tid,vid)).fetchone()
+    if not v: return jsonify({'error':'Not found'}), 404
     return jsonify({'venda':dict(v),'itens':rows_to_list(db.execute("SELECT * FROM venda_itens WHERE venda_id=?",(vid,)).fetchall())})
 
 @app.route('/api/vendas/<int:vid>/cancelar', methods=['POST'])
 @require_auth
 @require_module('vendas')
 def api_venda_cancelar(vid):
-    db=get_db(); d=request.json or {}
+    db=get_db(); d=request.json or {}; tid=session['tenant_id']
     motivo = d.get('motivo', '')
-    db.execute("UPDATE vendas SET status='CANCELADA', motivo_cancelamento=? WHERE id=?",(motivo, vid))
-    for it in db.execute("SELECT * FROM venda_itens WHERE venda_id=?",(vid,)).fetchall():
-        if it['produto_id']: db.execute("UPDATE produtos SET estoque=estoque+? WHERE id=?",(it['quantidade'],it['produto_id']))
+    
+    # Valida existencia do tenant filter no update
+    db.execute("UPDATE vendas SET status='CANCELADA', motivo_cancelamento=? WHERE tenant_id=? AND id=?",(motivo, tid, vid))
+    for it in db.execute("SELECT vi.* FROM venda_itens vi JOIN vendas v ON v.id=vi.venda_id WHERE v.tenant_id=? AND v.id=?",(tid, vid,)).fetchall():
+        if it['produto_id']: db.execute("UPDATE produtos SET estoque=estoque+? WHERE tenant_id=? AND id=?",(it['quantidade'],tid,it['produto_id']))
     db.commit(); return jsonify({'ok':True})
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -688,7 +635,8 @@ def api_venda_cancelar(vid):
 def api_os_list():
     db=get_db(); status=request.args.get('status',''); q=request.args.get('q','')
     di=request.args.get('data_ini',''); df=request.args.get('data_fim','')
-    sql="SELECT * FROM ordens_servico WHERE 1=1"; params=[]
+    tid=session['tenant_id']
+    sql="SELECT * FROM ordens_servico WHERE tenant_id=?"; params=[tid]
     if status: sql+=" AND status=?"; params.append(status)
     if q: sql+=" AND (numero LIKE ? OR cliente_nome LIKE ? OR equipamento LIKE ?)"; params+=[f'%{q}%']*3
     if di: sql+=" AND date(criado_em)>=?"; params.append(di)
@@ -699,42 +647,43 @@ def api_os_list():
 @require_auth
 @require_module('os')
 def api_os_create():
-    db=get_db(); d=request.json; numero=next_number('OS','ordens_servico','numero')
+    db=get_db(); d=request.json; numero=next_number('OS','ordens_servico','numero'); tid=session['tenant_id']
     
     # Suporte para novo cliente inline
     cid = d.get('cliente_id')
     cnome = d.get('cliente_nome','')
     if d.get('novo_cliente'):
         nc = d['novo_cliente']
-        cur_c = db.execute("INSERT INTO clientes(nome,cpf_cnpj,telefone) VALUES(?,?,?)",
-                           (nc['nome'], nc.get('cpf_cnpj',''), nc.get('telefone','')))
-        cid = cur_c.lastrowid
+        cur_c = db.execute("INSERT INTO clientes(tenant_id,nome,cpf_cnpj,telefone) VALUES(?,?,?,?) RETURNING id",
+                           (tid, nc['nome'], nc.get('cpf_cnpj',''), nc.get('telefone','')))
+        cid = cur_c.fetchone()['id']
         cnome = nc['nome']
 
-    cur=db.execute("INSERT INTO ordens_servico(numero,cliente_id,cliente_nome,equipamento,problema,tecnico,status,prioridade,previsao,valor_servico,valor_pecas,desconto,total,forma_pagamento,observacao,checklist,senha_padrao,senha_pin,cliente_cpf,cliente_telefone) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-                   (numero,cid,cnome,d.get('equipamento',''),d.get('problema',''),d.get('tecnico',''),d.get('status','ABERTA'),d.get('prioridade','NORMAL'),d.get('previsao'),d.get('valor_servico',0),d.get('valor_pecas',0),d.get('desconto',0),d.get('total',0),d.get('forma_pagamento','DINHEIRO'),d.get('observacao',''),d.get('checklist',''),d.get('senha_padrao',''),d.get('senha_pin',''),d.get('cliente_cpf',''),d.get('cliente_telefone','')))
-    oid=cur.lastrowid
+    cur=db.execute("INSERT INTO ordens_servico(tenant_id,numero,cliente_id,cliente_nome,equipamento,problema,tecnico,status,prioridade,previsao,valor_servico,valor_pecas,desconto,total,forma_pagamento,observacao,checklist,senha_padrao,senha_pin,cliente_cpf,cliente_telefone) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) RETURNING id",
+                   (tid,numero,cid,cnome,d.get('equipamento',''),d.get('problema',''),d.get('tecnico',''),d.get('status','ABERTA'),d.get('prioridade','NORMAL'),d.get('previsao'),d.get('valor_servico',0),d.get('valor_pecas',0),d.get('desconto',0),d.get('total',0),d.get('forma_pagamento','DINHEIRO'),d.get('observacao',''),d.get('checklist',''),d.get('senha_padrao',''),d.get('senha_pin',''),d.get('cliente_cpf',''),d.get('cliente_telefone','')))
+    oid=cur.fetchone()['id']
     for it in d.get('itens',[]):
         db.execute("INSERT INTO os_itens(os_id,produto_id,produto_nome,quantidade,preco_unitario,subtotal) VALUES(?,?,?,?,?,?)",
                    (oid,it.get('produto_id'),it['produto_nome'],it['quantidade'],it['preco_unitario'],it['subtotal']))
-        if it.get('produto_id'): db.execute("UPDATE produtos SET estoque=estoque-? WHERE id=?",(it['quantidade'],it['produto_id']))
+        if it.get('produto_id'): db.execute("UPDATE produtos SET estoque=estoque-? WHERE tenant_id=? AND id=?",(it['quantidade'],tid,it['produto_id']))
     db.commit(); return jsonify({'ok':True,'numero':numero,'id':oid})
 
 @app.route('/api/os/<int:oid>', methods=['GET'])
 @require_auth
 @require_module('os')
 def api_os_get(oid):
-    db=get_db()
-    o=db.execute("SELECT * FROM ordens_servico WHERE id=?",(oid,)).fetchone()
+    db=get_db(); tid=session['tenant_id']
+    o=db.execute("SELECT * FROM ordens_servico WHERE tenant_id=? AND id=?",(tid,oid)).fetchone()
+    if not o: return jsonify({'error':'Not found'}), 404
     return jsonify({'os':dict(o),'itens':rows_to_list(db.execute("SELECT * FROM os_itens WHERE os_id=?",(oid,)).fetchall())})
 
 @app.route('/api/os/<int:oid>', methods=['PUT'])
 @require_auth
 @require_module('os')
 def api_os_update(oid):
-    db=get_db(); d=request.json
-    db.execute("UPDATE ordens_servico SET cliente_id=?, cliente_nome=?, equipamento=?, problema=?, diagnostico=?, solucao=?, tecnico=?, status=?, prioridade=?, previsao=?, valor_servico=?, valor_pecas=?, desconto=?, total=?, forma_pagamento=?, observacao=?, checklist=?, senha_padrao=?, senha_pin=?, cliente_cpf=?, cliente_telefone=?, atualizado_em=(datetime('now','localtime')) WHERE id=?",
-               (d.get('cliente_id'), d.get('cliente_nome'), d.get('equipamento',''), d.get('problema',''), d.get('diagnostico',''), d.get('solucao',''), d.get('tecnico',''), d.get('status','ABERTA'), d.get('prioridade','NORMAL'), d.get('previsao'), d.get('valor_servico',0), d.get('valor_pecas',0), d.get('desconto',0), d.get('total',0), d.get('forma_pagamento','DINHEIRO'), d.get('observacao',''), d.get('checklist',''), d.get('senha_padrao',''), d.get('senha_pin',''), d.get('cliente_cpf',''), d.get('cliente_telefone',''), oid))
+    db=get_db(); d=request.json; tid=session['tenant_id']
+    db.execute("UPDATE ordens_servico SET cliente_id=?, cliente_nome=?, equipamento=?, problema=?, diagnostico=?, solucao=?, tecnico=?, status=?, prioridade=?, previsao=?, valor_servico=?, valor_pecas=?, desconto=?, total=?, forma_pagamento=?, observacao=?, checklist=?, senha_padrao=?, senha_pin=?, cliente_cpf=?, cliente_telefone=?, atualizado_em=(NOW()) WHERE tenant_id=? AND id=?",
+               (d.get('cliente_id'), d.get('cliente_nome'), d.get('equipamento',''), d.get('problema',''), d.get('diagnostico',''), d.get('solucao',''), d.get('tecnico',''), d.get('status','ABERTA'), d.get('prioridade','NORMAL'), d.get('previsao'), d.get('valor_servico',0), d.get('valor_pecas',0), d.get('desconto',0), d.get('total',0), d.get('forma_pagamento','DINHEIRO'), d.get('observacao',''), d.get('checklist',''), d.get('senha_padrao',''), d.get('senha_pin',''), d.get('cliente_cpf',''), d.get('cliente_telefone',''), tid, oid))
     db.commit(); return jsonify({'ok':True})
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -745,7 +694,8 @@ def api_os_update(oid):
 @require_module('financeiro')
 def api_despesas_list():
     db=get_db(); di=request.args.get('data_ini',''); df=request.args.get('data_fim',''); cat=request.args.get('categoria','')
-    sql="SELECT * FROM despesas WHERE 1=1"; params=[]
+    tid=session['tenant_id']
+    sql="SELECT * FROM despesas WHERE tenant_id=?"; params=[tid]
     if di: sql+=" AND date(data)>=?"; params.append(di)
     if df: sql+=" AND date(data)<=?"; params.append(df)
     if cat: sql+=" AND categoria=?"; params.append(cat)
@@ -755,23 +705,25 @@ def api_despesas_list():
 @require_auth
 @require_module('financeiro')
 def api_despesa_create():
-    db=get_db(); d=request.json
-    db.execute("INSERT INTO despesas(descricao,categoria,valor,data,forma_pagamento,observacao) VALUES(?,?,?,?,?,?)",
-               (d['descricao'],d.get('categoria','GERAL'),d['valor'],d['data'],d.get('forma_pagamento','DINHEIRO'),d.get('observacao','')))
+    db=get_db(); d=request.json; tid=session['tenant_id']
+    db.execute("INSERT INTO despesas(tenant_id,descricao,categoria,valor,data,forma_pagamento,observacao) VALUES(?,?,?,?,?,?,?)",
+               (tid,d['descricao'],d.get('categoria','GERAL'),d['valor'],d['data'],d.get('forma_pagamento','DINHEIRO'),d.get('observacao','')))
     db.commit(); return jsonify({'ok':True})
 
 @app.route('/api/despesas/<int:did>', methods=['DELETE'])
 @require_auth
 @require_module('financeiro')
 def api_despesa_delete(did):
-    db=get_db(); db.execute("DELETE FROM despesas WHERE id=?",(did,)); db.commit(); return jsonify({'ok':True})
+    db=get_db(); tid=session['tenant_id']
+    db.execute("DELETE FROM despesas WHERE tenant_id=? AND id=?",(tid,did)); db.commit(); return jsonify({'ok':True})
 
 @app.route('/api/compras', methods=['GET'])
 @require_auth
 @require_module('financeiro')
 def api_compras_list():
     db=get_db(); di=request.args.get('data_ini',''); df=request.args.get('data_fim','')
-    sql="SELECT * FROM compras WHERE 1=1"; params=[]
+    tid=session['tenant_id']
+    sql="SELECT * FROM compras WHERE tenant_id=?"; params=[tid]
     if di: sql+=" AND date(data)>=?"; params.append(di)
     if df: sql+=" AND date(data)<=?"; params.append(df)
     return jsonify(rows_to_list(db.execute(sql+' ORDER BY data DESC LIMIT 200',params).fetchall()))
@@ -780,14 +732,14 @@ def api_compras_list():
 @require_auth
 @require_module('financeiro')
 def api_compra_create():
-    db=get_db(); d=request.json
-    cur=db.execute("INSERT INTO compras(numero_nota,fornecedor,total,data,observacao) VALUES(?,?,?,?,?)",
-                   (d.get('numero_nota',''),d.get('fornecedor',''),d.get('total',0),d['data'],d.get('observacao','')))
-    cid=cur.lastrowid
+    db=get_db(); d=request.json; tid=session['tenant_id']
+    cur=db.execute("INSERT INTO compras(tenant_id,numero_nota,fornecedor,total,data,observacao) VALUES(?,?,?,?,?,?) RETURNING id",
+                   (tid,d.get('numero_nota',''),d.get('fornecedor',''),d.get('total',0),d['data'],d.get('observacao','')))
+    cid=cur.fetchone()['id']
     for it in d.get('itens',[]):
         db.execute("INSERT INTO compra_itens(compra_id,produto_id,produto_nome,quantidade,preco_unitario,subtotal) VALUES(?,?,?,?,?,?)",
                    (cid,it.get('produto_id'),it['produto_nome'],it['quantidade'],it['preco_unitario'],it['subtotal']))
-        if it.get('produto_id'): db.execute("UPDATE produtos SET estoque=estoque+?,preco_custo=? WHERE id=?",(it['quantidade'],it['preco_unitario'],it['produto_id']))
+        if it.get('produto_id'): db.execute("UPDATE produtos SET estoque=estoque+?,preco_custo=? WHERE tenant_id=? AND id=?",(it['quantidade'],it['preco_unitario'],tid,it['produto_id']))
     db.commit(); return jsonify({'ok':True,'id':cid})
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -796,31 +748,32 @@ def api_compra_create():
 @app.route('/api/vendedores', methods=['GET'])
 @require_auth
 def api_vendedores_list():
-    db=get_db()
-    return jsonify(rows_to_list(db.execute("SELECT * FROM vendedores WHERE ativo=1 ORDER BY nome").fetchall()))
+    db=get_db(); tid=session['tenant_id']
+    return jsonify(rows_to_list(db.execute("SELECT * FROM vendedores WHERE tenant_id=? AND ativo=1 ORDER BY nome", (tid,)).fetchall()))
 
 @app.route('/api/vendedores', methods=['POST'])
 @require_auth
 @require_module('settings')
 def api_vendedor_create():
-    db=get_db(); d=request.json
-    db.execute("INSERT INTO vendedores(nome) VALUES(?)", (d['nome'],))
+    db=get_db(); d=request.json; tid=session['tenant_id']
+    db.execute("INSERT INTO vendedores(tenant_id,nome) VALUES(?,?)", (tid,d['nome']))
     db.commit(); return jsonify({'ok':True})
 
 @app.route('/api/vendedores/<int:vid>', methods=['PUT'])
 @require_auth
 @require_module('settings')
 def api_vendedor_update(vid):
-    db=get_db(); d=request.json
-    db.execute("UPDATE vendedores SET nome=?, ativo=? WHERE id=?",
-               (d['nome'], d.get('ativo', 1), vid))
+    db=get_db(); d=request.json; tid=session['tenant_id']
+    db.execute("UPDATE vendedores SET nome=?, ativo=? WHERE tenant_id=? AND id=?",
+               (d['nome'], d.get('ativo', 1), tid, vid))
     db.commit(); return jsonify({'ok':True})
 
 @app.route('/api/vendedores/<int:vid>', methods=['DELETE'])
 @require_auth
 @require_module('settings')
 def api_vendedor_delete(vid):
-    db=get_db(); db.execute("UPDATE vendedores SET ativo=0 WHERE id=?", (vid,))
+    db=get_db(); tid=session['tenant_id']
+    db.execute("UPDATE vendedores SET ativo=0 WHERE tenant_id=? AND id=?", (tid, vid))
     db.commit(); return jsonify({'ok':True})
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -835,13 +788,14 @@ def api_contas_receber_list():
     cliente_id=request.args.get('cliente_id','')
     di=request.args.get('data_ini','')
     df=request.args.get('data_fim','')
+    tid = session['tenant_id']
     
     sql="""SELECT cr.*, c.nome as cliente_nome, 
            (SELECT COALESCE(SUM(valor_pago), 0) FROM recebimentos WHERE conta_id=cr.id) as total_recebido
            FROM contas_receber cr 
            LEFT JOIN clientes c ON c.id=cr.cliente_id 
-           WHERE 1=1"""
-    params=[]
+           WHERE cr.tenant_id=?"""
+    params=[tid]
     if status: sql+=" AND cr.status=?"; params.append(status)
     if cliente_id: sql+=" AND cr.cliente_id=?"; params.append(cliente_id)
     if di: sql+=" AND date(cr.data_vencimento)>=?"; params.append(di)
@@ -862,29 +816,29 @@ def api_contas_receber_list():
 @require_auth
 @require_module('financeiro')
 def api_contas_receber_create():
-    db=get_db(); d=request.json
+    db=get_db(); d=request.json; tid=session['tenant_id']
     cliente_id = d.get('cliente_id')
     
     if not cliente_id and d.get('novo_cliente'):
         nc = d['novo_cliente']
-        cur_c = db.execute("INSERT INTO clientes(nome,cpf_cnpj,telefone) VALUES(?,?,?)",
-                           (nc['nome'], nc.get('cpf_cnpj',''), nc.get('telefone','')))
-        cliente_id = cur_c.lastrowid
+        cur_c = db.execute("INSERT INTO clientes(tenant_id,nome,cpf_cnpj,telefone) VALUES(?,?,?,?) RETURNING id",
+                           (tid, nc['nome'], nc.get('cpf_cnpj',''), nc.get('telefone','')))
+        cliente_id = cur_c.fetchone()['id']
         
-    cur=db.execute("INSERT INTO contas_receber(cliente_id, descricao, valor_total, data_vencimento, status) VALUES(?,?,?,?,?)",
-                   (cliente_id, d['descricao'], d['valor_total'], d['data_vencimento'], 'PENDENTE'))
+    cur=db.execute("INSERT INTO contas_receber(tenant_id, cliente_id, descricao, valor_total, data_vencimento, status) VALUES(?,?,?,?,?,?) RETURNING id",
+                   (tid, cliente_id, d['descricao'], d['valor_total'], d['data_vencimento'], 'PENDENTE'))
     db.commit()
-    return jsonify({'ok':True, 'id': cur.lastrowid})
+    return jsonify({'ok':True, 'id': cur.fetchone()['id']})
 
 @app.route('/api/contas_receber/<int:cid>', methods=['GET'])
 @require_auth
 @require_module('financeiro')
 def api_contas_receber_get(cid):
-    db=get_db()
+    db=get_db(); tid=session['tenant_id']
     c = db.execute('''SELECT cr.*, cl.nome as cliente_nome 
                       FROM contas_receber cr 
                       LEFT JOIN clientes cl ON cl.id=cr.cliente_id 
-                      WHERE cr.id=?''', (cid,)).fetchone()
+                      WHERE cr.tenant_id=? AND cr.id=?''', (tid, cid)).fetchone()
     if not c: return jsonify({'ok': False, 'error': 'Not found'}), 404
     
     recebimentos = rows_to_list(db.execute("SELECT * FROM recebimentos WHERE conta_id=? ORDER BY data_pagamento ASC", (cid,)).fetchall())
@@ -898,10 +852,10 @@ def api_contas_receber_get(cid):
 @require_auth
 @require_module('financeiro')
 def api_contas_receber_pay(cid):
-    db=get_db(); d=request.json
+    db=get_db(); d=request.json; tid=session['tenant_id']
     valor_pago = float(d['valor_pago'])
     
-    conta = db.execute("SELECT * FROM contas_receber WHERE id=?", (cid,)).fetchone()
+    conta = db.execute("SELECT * FROM contas_receber WHERE tenant_id=? AND id=?", (tid, cid)).fetchone()
     if not conta: return jsonify({'ok': False, 'error': 'Not found'}), 404
         
     db.execute("INSERT INTO recebimentos(conta_id, valor_pago, data_pagamento, forma_pagamento) VALUES(?,?,?,?)",
@@ -912,7 +866,7 @@ def api_contas_receber_pay(cid):
     novo_status = 'PARCIAL'
     if total_recebido >= conta['valor_total']: novo_status = 'PAGA'
         
-    db.execute("UPDATE contas_receber SET status=?, atualizado_em=(datetime('now','localtime')) WHERE id=?", (novo_status, cid))
+    db.execute("UPDATE contas_receber SET status=?, atualizado_em=(NOW()) WHERE id=? AND tenant_id=?", (novo_status, cid, tid))
     db.commit()
     return jsonify({'ok':True, 'novo_status': novo_status, 'total_recebido': total_recebido})
 
@@ -920,8 +874,8 @@ def api_contas_receber_pay(cid):
 @require_auth
 @require_module('financeiro')
 def api_contas_receber_delete(cid):
-    db=get_db()
-    db.execute("DELETE FROM contas_receber WHERE id=?", (cid,))
+    db=get_db(); tid=session['tenant_id']
+    db.execute("DELETE FROM contas_receber WHERE tenant_id=? AND id=?", (tid, cid))
     db.commit()
     return jsonify({'ok':True})
 
@@ -929,22 +883,32 @@ def api_contas_receber_delete(cid):
 @require_auth
 @require_module('financeiro')
 def api_contas_receber_dashboard():
-    db=get_db()
+    db=get_db(); tid=session['tenant_id']
     hoje = date.today().isoformat()
     mes_ini = date.today().replace(day=1).isoformat()
     
     pendentes = db.execute('''
         SELECT SUM(valor_total - (SELECT COALESCE(SUM(valor_pago),0) FROM recebimentos WHERE conta_id=cr.id)) as t 
-        FROM contas_receber cr WHERE cr.status != 'PAGA'
-    ''').fetchone()['t'] or 0
+        FROM contas_receber cr WHERE cr.tenant_id=? AND cr.status != 'PAGA'
+    ''', (tid,)).fetchone()['t'] or 0
     
     vencido = db.execute('''
         SELECT SUM(valor_total - (SELECT COALESCE(SUM(valor_pago),0) FROM recebimentos WHERE conta_id=cr.id)) as t 
-        FROM contas_receber cr WHERE cr.status != 'PAGA' AND date(cr.data_vencimento) < ?
-    ''', (hoje,)).fetchone()['t'] or 0
+        FROM contas_receber cr WHERE cr.tenant_id=? AND cr.status != 'PAGA' AND date(cr.data_vencimento) < ?
+    ''', (tid, hoje)).fetchone()['t'] or 0
     
-    recebido_hoje = db.execute("SELECT COALESCE(SUM(valor_pago),0) as t FROM recebimentos WHERE date(data_pagamento) = ?", (hoje,)).fetchone()['t'] or 0
-    recebido_mes = db.execute("SELECT COALESCE(SUM(valor_pago),0) as t FROM recebimentos WHERE date(data_pagamento) >= ?", (mes_ini,)).fetchone()['t'] or 0
+    # Received joins with contas_receber to check tenant
+    recebido_hoje = db.execute('''
+        SELECT COALESCE(SUM(r.valor_pago),0) as t 
+        FROM recebimentos r JOIN contas_receber cr ON cr.id=r.conta_id 
+        WHERE cr.tenant_id=? AND date(r.data_pagamento) = ?
+    ''', (tid, hoje)).fetchone()['t'] or 0
+    
+    recebido_mes = db.execute('''
+        SELECT COALESCE(SUM(r.valor_pago),0) as t 
+        FROM recebimentos r JOIN contas_receber cr ON cr.id=r.conta_id 
+        WHERE cr.tenant_id=? AND date(r.data_pagamento) >= ?
+    ''', (tid, mes_ini)).fetchone()['t'] or 0
     
     return jsonify({
         'total_a_receber': pendentes,
@@ -960,25 +924,25 @@ def api_contas_receber_dashboard():
 @require_auth
 @require_module('relatorios')
 def rel_vendas():
-    db=get_db()
+    db=get_db(); tid=session['tenant_id']
     di=request.args.get('data_ini',date.today().replace(day=1).isoformat())
     df=request.args.get('data_fim',date.today().isoformat())
     ag=request.args.get('agrupamento','dia')
     vid=request.args.get('vendedor_id','')
     
-    where = "status='CONCLUIDA' AND date(criado_em) BETWEEN ? AND ?"
-    params = [di, df]
+    where = "tenant_id=? AND status='CONCLUIDA' AND date(criado_em) BETWEEN ? AND ?"
+    params = [tid, di, df]
     if vid:
         where += " AND vendedor_id = ?"
         params.append(int(vid))
         
-    where_itens = "v.status='CONCLUIDA' AND date(v.criado_em) BETWEEN ? AND ?"
-    params_itens = [di, df]
+    where_itens = "v.tenant_id=? AND v.status='CONCLUIDA' AND date(v.criado_em) BETWEEN ? AND ?"
+    params_itens = [tid, di, df]
     if vid:
         where_itens += " AND v.vendedor_id = ?"
         params_itens.append(int(vid))
 
-    fmt2 = {"mes":"strftime('%Y-%m',criado_em)","semana":"strftime('%Y-W%W',criado_em)"}.get(ag,"date(criado_em)")
+    fmt2 = {"mes":"to_char(criado_em, 'YYYY-MM')","semana":"to_char(criado_em, 'IYYY-IW')"}.get(ag,"date(criado_em)::text")
     resumo=rows_to_list(db.execute(f"SELECT {fmt2} as periodo,COUNT(*) as qtd_vendas,SUM(total) as total,SUM(desconto) as desconto,AVG(total) as ticket_medio FROM vendas WHERE {where} GROUP BY periodo ORDER BY periodo", params).fetchall())
     formas=rows_to_list(db.execute(f"SELECT forma_pagamento,COUNT(*) as qtd,SUM(total) as total FROM vendas WHERE {where} GROUP BY forma_pagamento", params).fetchall())
     top=rows_to_list(db.execute(f"SELECT vi.produto_nome,SUM(vi.quantidade) as qtd,SUM(vi.subtotal) as total FROM venda_itens vi JOIN vendas v ON v.id=vi.venda_id WHERE {where_itens} GROUP BY vi.produto_nome ORDER BY total DESC LIMIT 20", params_itens).fetchall())
@@ -989,22 +953,22 @@ def rel_vendas():
 @require_auth
 @require_module('relatorios')
 def rel_financeiro():
-    db=get_db()
+    db=get_db(); tid=session['tenant_id']
     di=request.args.get('data_ini',date.today().replace(day=1).isoformat())
     df=request.args.get('data_fim',date.today().isoformat())
-    rv=db.execute("SELECT COALESCE(SUM(total),0) as t FROM vendas WHERE status='CONCLUIDA' AND date(criado_em) BETWEEN ? AND ?",(di,df)).fetchone()['t']
-    ros=db.execute("SELECT COALESCE(SUM(total),0) as t FROM ordens_servico WHERE status='CONCLUIDA' AND date(criado_em) BETWEEN ? AND ?",(di,df)).fetchone()['t']
-    desp=db.execute("SELECT COALESCE(SUM(valor),0) as t FROM despesas WHERE date(data) BETWEEN ? AND ?",(di,df)).fetchone()['t']
-    comp=db.execute("SELECT COALESCE(SUM(total),0) as t FROM compras WHERE date(data) BETWEEN ? AND ?",(di,df)).fetchone()['t']
-    cat_d=rows_to_list(db.execute("SELECT categoria,SUM(valor) as total FROM despesas WHERE date(data) BETWEEN ? AND ? GROUP BY categoria ORDER BY total DESC",(di,df)).fetchall())
+    rv=db.execute("SELECT COALESCE(SUM(total),0) as t FROM vendas WHERE tenant_id=? AND status='CONCLUIDA' AND date(criado_em) BETWEEN ? AND ?",(tid,di,df)).fetchone()['t']
+    ros=db.execute("SELECT COALESCE(SUM(total),0) as t FROM ordens_servico WHERE tenant_id=? AND status='CONCLUIDA' AND date(criado_em) BETWEEN ? AND ?",(tid,di,df)).fetchone()['t']
+    desp=db.execute("SELECT COALESCE(SUM(valor),0) as t FROM despesas WHERE tenant_id=? AND date(data) BETWEEN ? AND ?",(tid,di,df)).fetchone()['t']
+    comp=db.execute("SELECT COALESCE(SUM(total),0) as t FROM compras WHERE tenant_id=? AND date(data) BETWEEN ? AND ?",(tid,di,df)).fetchone()['t']
+    cat_d=rows_to_list(db.execute("SELECT categoria,SUM(valor) as total FROM despesas WHERE tenant_id=? AND date(data) BETWEEN ? AND ? GROUP BY categoria ORDER BY total DESC",(tid,di,df)).fetchall())
     return jsonify({'receita_vendas':rv,'receita_os':ros,'total_receitas':rv+ros,'total_despesas':desp,'total_compras':comp,'lucro_bruto':rv+ros-desp,'categorias_despesas':cat_d,'evolucao_mensal':[]})
 
 @app.route('/api/relatorios/estoque')
 @require_auth
 @require_module('relatorios')
 def rel_estoque():
-    db=get_db()
-    rows=db.execute("SELECT p.*,c.nome as categoria_nome,(p.estoque*p.preco_custo) as valor_estoque FROM produtos p LEFT JOIN categorias c ON c.id=p.categoria_id WHERE p.ativo=1 ORDER BY p.nome").fetchall()
+    db=get_db(); tid=session['tenant_id']
+    rows=db.execute("SELECT p.*,c.nome as categoria_nome,(p.estoque*p.preco_custo) as valor_estoque FROM produtos p LEFT JOIN categorias c ON c.id=p.categoria_id WHERE p.tenant_id=? AND p.ativo=1 ORDER BY p.nome", (tid,)).fetchall()
     total_val=sum(r['valor_estoque'] or 0 for r in rows)
     return jsonify({'produtos':rows_to_list(rows),'valor_total_estoque':total_val,'produtos_estoque_baixo':[dict(r) for r in rows if r['estoque']<=r['estoque_minimo']]})
 

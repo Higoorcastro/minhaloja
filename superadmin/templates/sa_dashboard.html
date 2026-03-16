@@ -1,0 +1,108 @@
+{% extends "sa_base.html" %}
+
+{% block title %}Dashboard{% endblock %}
+{% block header_title %}Visão Geral{% endblock %}
+
+{% block content %}
+<div class="mb-8">
+    <h2 class="text-2xl font-bold text-slate-800">Seja bem-vindo, {{ session.get('superadmin_nome') }}</h2>
+    <p class="text-slate-500 mt-1">Aqui está o resumo do seu ecossistema de lojas no momento.</p>
+</div>
+
+<!-- Stats -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-10" id="kpi-grid">
+    <!-- Skeleton loader -->
+    <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 animate-pulse h-32"></div>
+    <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 animate-pulse h-32"></div>
+    <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 animate-pulse h-32"></div>
+    <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 animate-pulse h-32"></div>
+</div>
+
+<!-- Tabela de Últimos Tenants -->
+<div class="bg-white border border-slate-200 shadow-sm rounded-2xl overflow-hidden">
+    <div class="px-6 py-5 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+        <h3 class="text-lg font-semibold text-slate-800">Recentes Adições</h3>
+        <a href="/lojas" class="text-sm font-medium text-accent hover:text-blue-600 transition-colors">Ver todas →</a>
+    </div>
+    <div class="overflow-x-auto">
+        <table class="w-full text-left border-collapse">
+            <thead>
+                <tr class="bg-slate-50 text-slate-500 text-xs uppercase tracking-wider">
+                    <th class="px-6 py-4 font-semibold">Loja</th>
+                    <th class="px-6 py-4 font-semibold">Plano Atual</th>
+                    <th class="px-6 py-4 font-semibold">Status</th>
+                    <th class="px-6 py-4 font-semibold">Data Entrada</th>
+                </tr>
+            </thead>
+            <tbody id="recent-tenants" class="divide-y divide-slate-100/80">
+                <tr><td colspan="4" class="px-6 py-8 text-center text-slate-400">Carregando dados...</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener("DOMContentLoaded", () => {
+        carregarDashboard();
+    });
+
+    async function carregarDashboard() {
+        try {
+            const res = await fetch('/api/dashboard');
+            const data = await res.json();
+            
+            // Render KPIs
+            const kpiGrid = document.getElementById('kpi-grid');
+            kpiGrid.innerHTML = `
+                <div class="bg-white rounded-2xl p-6 shadow-sm shadow-slate-200/50 border border-slate-200/60 relative overflow-hidden group">
+                    <div class="absolute top-0 right-0 p-4 opacity-10 group-hover:scale-110 transition-transform"><i data-lucide="store" class="w-16 h-16"></i></div>
+                    <p class="text-sm font-medium text-slate-500 mb-1">Total de Lojas</p>
+                    <h4 class="text-3xl font-bold text-slate-800">${data.total_tenants}</h4>
+                </div>
+                <div class="bg-white rounded-2xl p-6 shadow-sm shadow-slate-200/50 border border-slate-200/60 relative overflow-hidden group">
+                    <div class="absolute top-0 right-0 p-4 opacity-10 group-hover:scale-110 transition-transform"><i data-lucide="activity" class="w-16 h-16 text-emerald-500"></i></div>
+                    <p class="text-sm font-medium text-slate-500 mb-1">Lojas Ativas</p>
+                    <h4 class="text-3xl font-bold text-emerald-600">${data.ativos}</h4>
+                </div>
+                <div class="bg-white rounded-2xl p-6 shadow-sm shadow-slate-200/50 border border-slate-200/60 relative overflow-hidden group">
+                    <div class="absolute top-0 right-0 p-4 opacity-10 group-hover:scale-110 transition-transform"><i data-lucide="alert-circle" class="w-16 h-16 text-amber-500"></i></div>
+                    <p class="text-sm font-medium text-slate-500 mb-1">Lojas Suspensas</p>
+                    <h4 class="text-3xl font-bold text-amber-500">${data.suspensos}</h4>
+                </div>
+                <div class="bg-gradient-to-br from-blue-600 to-blue-800 rounded-2xl p-6 shadow-lg shadow-blue-500/30 border border-blue-500/20 relative overflow-hidden">
+                    <div class="absolute top-0 right-0 p-4 opacity-20"><i data-lucide="trending-up" class="w-16 h-16 text-white"></i></div>
+                    <p class="text-sm font-medium text-blue-100 mb-1">Receita Mensal (Estimada)</p>
+                    <h4 class="text-3xl font-bold text-white">R$ ${data.receita_mensal.toFixed(2)}</h4>
+                </div>
+            `;
+            lucide.createIcons();
+
+            // Render Table
+            const tbody = document.getElementById('recent-tenants');
+            if (data.ultimos_tenants.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="4" class="px-6 py-8 text-center text-slate-500 font-medium">Nenhuma loja cadastrada ainda.</td></tr>`;
+            } else {
+                tbody.innerHTML = data.ultimos_tenants.map(t => `
+                    <tr class="hover:bg-slate-50/50 transition-colors">
+                        <td class="px-6 py-4 font-medium text-slate-800">${t.nome}</td>
+                        <td class="px-6 py-4 text-slate-600 text-sm"><span class="px-2 py-1 bg-blue-50 text-blue-700 rounded-md border border-blue-100 font-medium">${t.plano}</span></td>
+                        <td class="px-6 py-4">
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${
+                                t.status === 'ATIVO' ? 'bg-emerald-100 text-emerald-800' : 
+                                t.status === 'SUSPENSO' ? 'bg-amber-100 text-amber-800' : 'bg-red-100 text-red-800'
+                            }">
+                                ${t.status}
+                            </span>
+                        </td>
+                        <td class="px-6 py-4 text-slate-500 text-sm">${t.criado_em}</td>
+                    </tr>
+                `).join('');
+            }
+        } catch (e) {
+            console.error('Erro ao carregar dashboard', e);
+        }
+    }
+</script>
+{% endblock %}

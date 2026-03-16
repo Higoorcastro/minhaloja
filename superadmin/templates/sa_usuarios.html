@@ -1,0 +1,259 @@
+{% extends "sa_base.html" %}
+
+{% block title %}Usuários Globais{% endblock %}
+{% block header_title %}Controle de Usuários por Loja{% endblock %}
+
+{% block content %}
+<div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 mb-6 flex items-end gap-4">
+    <div class="flex-1">
+        <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Filtrar por Loja (Tenant)</label>
+        <div class="relative">
+            <i data-lucide="store" class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400"></i>
+            <select id="filtro-tenant" class="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/50 outline-none text-sm font-medium" onchange="carregarUsuarios()">
+                <option value="">-- Selecione uma loja primeiro --</option>
+            </select>
+        </div>
+    </div>
+    <button onclick="abrirModal()" id="btn-novo-usr" disabled class="disabled:opacity-50 disabled:cursor-not-allowed flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white font-medium rounded-xl shadow-md transition-all text-sm h-[42px]">
+        <i data-lucide="user-plus" class="w-4 h-4 mr-2"></i> Criar Acesso
+    </button>
+</div>
+
+<!-- Table -->
+<div class="bg-white border border-slate-200 shadow-sm rounded-2xl overflow-hidden">
+    <div class="overflow-x-auto">
+        <table class="w-full text-left border-collapse">
+            <thead>
+                <tr class="bg-slate-50 text-slate-500 text-xs uppercase tracking-wider">
+                    <th class="px-6 py-4 font-semibold">Usuário</th>
+                    <th class="px-6 py-4 font-semibold">Login do Sistema</th>
+                    <th class="px-6 py-4 font-semibold">Papel</th>
+                    <th class="px-6 py-4 font-semibold">Status Acesso</th>
+                    <th class="px-6 py-4 font-semibold text-right">Ações</th>
+                </tr>
+            </thead>
+            <tbody id="tabela-body" class="divide-y divide-slate-100/80">
+                <tr><td colspan="5" class="px-6 py-12 text-center text-slate-500">Selecione uma loja no filtro acima para ver os usuários.</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Modal Formulário -->
+<div id="modal-form" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 hidden items-center justify-center p-4 opacity-0 transition-opacity duration-300">
+    <div class="bg-white w-full max-w-md rounded-2xl shadow-2xl scale-95 transition-transform duration-300 transform" id="modal-content">
+        <div class="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50 rounded-t-2xl">
+            <h3 class="text-lg font-semibold text-slate-800" id="modal-title">Novo Usuário</h3>
+            <button onclick="fecharModal()" class="text-slate-400 hover:text-slate-600 transition-colors p-1 rounded-md hover:bg-white">
+                <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+        </div>
+        
+        <form id="form-user" class="p-6 space-y-4" onsubmit="event.preventDefault(); salvarUsuario();">
+            <input type="hidden" id="user_id">
+            
+            <div class="p-3 bg-blue-50 border border-blue-100 rounded-lg text-sm text-blue-800 mb-2 flex items-center">
+                <i data-lucide="info" class="w-4 h-4 mr-2 shrink-0"></i>
+                <span>Loja alvo: <b id="target-store-name">Selecione</b></span>
+            </div>
+
+            <div>
+                <label class="block text-sm font-medium text-slate-700 mb-1" for="nome">Nome Completo</label>
+                <input type="text" id="nome" required class="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500/50 outline-none text-sm">
+            </div>
+            
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1" for="login">Login In-App</label>
+                    <input type="text" id="login" required autocomplete="off" class="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500/50 outline-none text-sm font-mono">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1" for="senha">Senha <span id="senha-req" class="text-red-500 font-normal">*</span></label>
+                    <input type="password" id="senha" autocomplete="new-password" class="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500/50 outline-none text-sm placeholder:text-slate-300" placeholder="••••••••">
+                </div>
+            </div>
+            
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1" for="papel">Nível de Acesso</label>
+                    <select id="papel" class="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500/50 outline-none text-sm">
+                        <option value="admin">Administrador Local</option>
+                        <option value="operador" selected>Operador Padrão</option>
+                    </select>
+                </div>
+                <div class="flex items-center pt-6">
+                    <input type="checkbox" id="ativo" class="w-4 h-4 text-emerald-600 bg-slate-100 border-slate-300 rounded focus:ring-emerald-500" checked>
+                    <label for="ativo" class="ml-2 text-sm font-medium text-slate-700">Acesso Permitido</label>
+                </div>
+            </div>
+
+            <div class="pt-4 flex justify-end gap-3 border-t border-slate-100 mt-6">
+                <button type="button" onclick="fecharModal()" class="px-4 py-2 bg-white border border-slate-300 text-slate-700 font-medium rounded-lg hover:bg-slate-50 transition-colors text-sm">Cancelar</button>
+                <button type="submit" class="px-4 py-2 bg-slate-900 text-white font-medium rounded-lg hover:bg-slate-800 transition-colors shadow-sm text-sm">Salvar Registro</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let lojas = [];
+    let usuarios = [];
+
+    document.addEventListener("DOMContentLoaded", () => {
+        carregarLojas();
+    });
+
+    async function carregarLojas() {
+        try {
+            const res = await fetch('/api/tenants');
+            lojas = await res.json();
+            
+            const sel = document.getElementById('filtro-tenant');
+            sel.innerHTML += lojas.map(t => `<option value="${t.id}">${t.nome}</option>`).join('');
+        } catch(e) { console.error(e); }
+    }
+
+    async function carregarUsuarios() {
+        const tid = document.getElementById('filtro-tenant').value;
+        const btn = document.getElementById('btn-novo-usr');
+        
+        if(!tid) {
+            btn.disabled = true;
+            document.getElementById('tabela-body').innerHTML = `<tr><td colspan="5" class="px-6 py-12 text-center text-slate-500">Selecione uma loja no filtro acima para ver os usuários.</td></tr>`;
+            return;
+        }
+
+        btn.disabled = false;
+        try {
+            const res = await fetch(`/api/tenant_usuarios?tenant_id=${tid}`);
+            usuarios = await res.json();
+            renderTable();
+            
+            const lojaNome = lojas.find(l => l.id == tid)?.nome;
+            document.getElementById('target-store-name').textContent = lojaNome;
+        } catch(e) { console.error(e); }
+    }
+
+    function renderTable() {
+        const tbody = document.getElementById('tabela-body');
+        if(usuarios.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="5" class="px-6 py-8 text-center text-slate-500">Nenhum usuário cadastrado nesta loja.</td></tr>`;
+            return;
+        }
+
+        tbody.innerHTML = usuarios.map(u => `
+            <tr class="hover:bg-slate-50 transition-colors group">
+                <td class="px-6 py-4 font-medium text-slate-800">
+                    <div class="flex items-center">
+                        <div class="w-8 h-8 rounded bg-slate-200 text-slate-600 flex items-center justify-center font-bold text-xs mr-3">${u.nome.charAt(0).toUpperCase()}</div>
+                        ${u.nome}
+                    </div>
+                </td>
+                <td class="px-6 py-4"><span class="font-mono text-xs bg-slate-100 px-2 py-1 rounded text-slate-600 border border-slate-200">${u.login}</span></td>
+                <td class="px-6 py-4">
+                    ${u.papel === 'admin' ? 
+                        '<span class="text-xs font-semibold text-purple-700 bg-purple-50 px-2 py-1 rounded-md border border-purple-100">Administrador</span>' : 
+                        '<span class="text-xs font-medium text-slate-600 bg-slate-100 px-2 py-1 rounded-md">Operador</span>'
+                    }
+                </td>
+                <td class="px-6 py-4">
+                    ${u.ativo ? 
+                        '<span class="inline-flex items-center text-xs font-medium text-emerald-600"><i data-lucide="check-circle-2" class="w-4 h-4 mr-1"></i> Ativo</span>' : 
+                        '<span class="inline-flex items-center text-xs font-medium text-red-500"><i data-lucide="x-circle" class="w-4 h-4 mr-1"></i> Bloqueado</span>'
+                    }
+                </td>
+                <td class="px-6 py-4 text-right">
+                    <button onclick='editar(${JSON.stringify(u).replace(/'/g, "&#39;")})' class="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors opacity-0 group-hover:opacity-100">
+                        <i data-lucide="edit" class="w-4 h-4"></i>
+                    </button>
+                </td>
+            </tr>
+        `).join('');
+        lucide.createIcons();
+    }
+
+    // Modal
+    const modal = document.getElementById('modal-form');
+    const modalContent = document.getElementById('modal-content');
+    
+    function abrirModal() {
+        document.getElementById('form-user').reset();
+        document.getElementById('user_id').value = '';
+        document.getElementById('modal-title').textContent = 'Novo Usuário';
+        document.getElementById('senha').setAttribute('required', 'required');
+        document.getElementById('senha-req').style.display = 'inline';
+        document.getElementById('login').readOnly = false;
+        
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+        setTimeout(() => {
+            modal.classList.remove('opacity-0');
+            modalContent.classList.remove('scale-95');
+        }, 10);
+    }
+
+    function fecharModal() {
+        modal.classList.add('opacity-0');
+        modalContent.classList.add('scale-95');
+        setTimeout(() => {
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+        }, 300);
+    }
+
+    function editar(u) {
+        document.getElementById('user_id').value = u.id;
+        document.getElementById('nome').value = u.nome;
+        document.getElementById('login').value = u.login;
+        document.getElementById('login').readOnly = true; // Para de editar login atual
+        document.getElementById('papel').value = u.papel;
+        document.getElementById('ativo').checked = u.ativo;
+        
+        document.getElementById('senha').removeAttribute('required');
+        document.getElementById('senha').value = '';
+        document.getElementById('senha-req').style.display = 'none';
+        
+        document.getElementById('modal-title').textContent = 'Editar Usuário';
+        
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+        setTimeout(() => {
+            modal.classList.remove('opacity-0');
+            modalContent.classList.remove('scale-95');
+        }, 10);
+    }
+
+    async function salvarUsuario() {
+        const id = document.getElementById('user_id').value;
+        const tenant_id = document.getElementById('filtro-tenant').value;
+        
+        const d = {
+            tenant_id: parseInt(tenant_id),
+            nome: document.getElementById('nome').value,
+            login: document.getElementById('login').value,
+            papel: document.getElementById('papel').value,
+            ativo: document.getElementById('ativo').checked
+        };
+        
+        const senha = document.getElementById('senha').value;
+        if(senha) d.senha = senha;
+
+        const url = id ? `/api/tenant_usuarios/${id}` : '/api/tenant_usuarios';
+        const method = id ? 'PUT' : 'POST';
+
+        const res = await fetch(url, {
+            method, headers: {'Content-Type':'application/json'}, body: JSON.stringify(d)
+        });
+
+        if(res.ok) {
+            fecharModal();
+            carregarUsuarios();
+        } else {
+            const dr = await res.json();
+            alert(dr.message || 'Erro ao salvar');
+        }
+    }
+</script>
+{% endblock %}
