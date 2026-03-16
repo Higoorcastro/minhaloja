@@ -280,6 +280,13 @@ def init_db():
     """)
     raw_db.commit()
 
+    # Migração: adiciona coluna permissoes se não existir (bancos existentes)
+    cur.execute("""
+        ALTER TABLE tenant_usuarios 
+        ADD COLUMN IF NOT EXISTS permissoes TEXT DEFAULT '';
+    """)
+    raw_db.commit()
+
     # We do NOT run sqlite migrations like 'db_migrate(conn)' or seed static categories here.
     # Seed categories can be done dynamically when creating a tenant inside the superadmin.
     raw_db.close()
@@ -400,13 +407,20 @@ def api_login():
     if not tenant or tenant['status'] != 'ATIVO':
         return jsonify({'ok': False, 'message': 'Loja bloqueada. Contate o administrador.'}), 403
 
+    # Carrega permissões reais: admin tem tudo, operador tem apenas o que foi configurado
+    if user['papel'] == 'admin':
+        perms = ALL_MODULES
+    else:
+        raw = (user.get('permissoes') or '')
+        perms = [p for p in raw.split(',') if p.strip()] if raw else []
+
     session.clear()
     session['user_id']     = user['id']
     session['tenant_id']   = user['tenant_id']
     session['user_nome']   = user['nome']
     session['papel']       = user['papel']
-    session['permissions'] = ALL_MODULES
-    return jsonify({'ok': True, 'nome': user['nome'], 'papel': user['papel'], 'permissions': ALL_MODULES})
+    session['permissions'] = perms
+    return jsonify({'ok': True, 'nome': user['nome'], 'papel': user['papel'], 'permissions': perms})
 
 @app.route('/api/auth/logout', methods=['POST'])
 def api_logout():
@@ -421,7 +435,7 @@ def api_me():
                     'tenant_id': session.get('tenant_id'),
                     'nome': session.get('user_nome'),
                     'papel': session.get('papel'),
-                    'permissions': ALL_MODULES})
+                    'permissions': session.get('permissions', [])})
 
 @app.route('/api/auth/change_password', methods=['POST'])
 @require_auth
@@ -452,6 +466,33 @@ def index():
     return render_template('index.html')
 
 # ══════════════════════════════════════════════════════════════════════════
+# API – PLANO INFO (usado pelo frontend para montar grid de permissões)
+# ══════════════════════════════════════════════════════════════════════════
+@app.route('/api/plano/info')
+@require_auth
+def api_plano_info():
+    db = get_db()
+    tid = session['tenant_id']
+    row = db.execute("""
+        SELECT p.max_usuarios, p.modulos,
+               COUNT(tu.id) as total_usuarios
+        FROM tenants t
+        JOIN planos p ON p.id = t.plano_id
+        LEFT JOIN tenant_usuarios tu ON tu.tenant_id = t.id AND tu.ativo = True
+        WHERE t.id = ?
+        GROUP BY p.max_usuarios, p.modulos
+    """, (tid,)).fetchone()
+    if not row:
+        # Plano não configurado — retorna tudo liberado
+        return jsonify({'max_usuarios': 999, 'modulos': ALL_MODULES, 'total_usuarios': 0})
+    modulos_plano = [m.strip() for m in (row['modulos'] or '').split(',') if m.strip()]
+    return jsonify({
+        'max_usuarios': row['max_usuarios'],
+        'modulos': modulos_plano,
+        'total_usuarios': row['total_usuarios']
+    })
+
+# ══════════════════════════════════════════════════════════════════════════
 # API – USUARIOS
 # ══════════════════════════════════════════════════════════════════════════
 @app.route('/api/usuarios', methods=['GET'])
@@ -461,11 +502,35 @@ def api_usuarios_list():
     db = get_db()
     tid = session.get('tenant_id')
     users = rows_to_list(db.execute(
-        "SELECT id,nome,login,papel,ativo,criado_em FROM tenant_usuarios WHERE tenant_id=? AND ativo=True ORDER BY nome", (tid,)).fetchall())
-    # Fakes permissions that frontend expects to render properly
+        "SELECT id,nome,login,papel,ativo,permissoes,criado_em FROM tenant_usuarios WHERE tenant_id=? ORDER BY nome", (tid,)).fetchall())
+    # Converte string CSV de permissoes para lista
     for u in users:
-        u['permissoes'] = ALL_MODULES
+        raw = u.get('permissoes') or ''
+        u['permissoes'] = [p for p in raw.split(',') if p.strip()] if raw else []
     return jsonify(users)
+
+def _get_plano_info(db, tid):
+    """Retorna (max_usuarios, modulos_lista, total_ativos) do tenant."""
+    row = db.execute("""
+        SELECT p.max_usuarios, p.modulos,
+               COUNT(tu.id) as total_usuarios
+        FROM tenants t
+        JOIN planos p ON p.id = t.plano_id
+        LEFT JOIN tenant_usuarios tu ON tu.tenant_id = t.id AND tu.ativo = True
+        WHERE t.id = ?
+        GROUP BY p.max_usuarios, p.modulos
+    """, (tid,)).fetchone()
+    if not row:
+        return 999, ALL_MODULES, 0
+    modulos = [m.strip() for m in (row['modulos'] or '').split(',') if m.strip()]
+    return row['max_usuarios'], modulos, row['total_usuarios']
+
+def _validar_permissoes(perms_enviadas, modulos_plano, papel):
+    """Filtra permissões enviadas pelo frontend para apenas as do plano. Admin não precisa."""
+    if papel == 'admin':
+        return ''
+    validas = [p for p in perms_enviadas if p in modulos_plano]
+    return ','.join(validas)
 
 @app.route('/api/usuarios', methods=['POST'])
 @require_auth
@@ -474,13 +539,28 @@ def api_usuario_create():
     db = get_db()
     d = request.json or {}
     login = (d.get('login') or '').strip()
+    nome = (d.get('nome') or '').strip()
     tid = session['tenant_id']
-    if not login or not d.get('nome') or not d.get('senha'):
+
+    if not login or not nome or not d.get('senha'):
         return jsonify({'ok': False, 'message': 'Nome, login e senha são obrigatórios'}), 400
+    if len(d['senha']) < 8:
+        return jsonify({'ok': False, 'message': 'Senha: mínimo 8 caracteres'}), 400
+
+    # Verifica limite de usuários do plano
+    max_u, modulos_plano, total_u = _get_plano_info(db, tid)
+    if total_u >= max_u:
+        return jsonify({'ok': False, 'message': f'Limite de {max_u} usuários atingido para o seu plano'}), 403
+
     if db.execute("SELECT id FROM tenant_usuarios WHERE tenant_id=? AND login=?", (tid, login)).fetchone():
         return jsonify({'ok': False, 'message': 'Login já existe na loja'}), 400
-    cur = db.execute("INSERT INTO tenant_usuarios (tenant_id,nome,login,senha_hash,papel) VALUES(?,?,?,?,?) RETURNING id",
-                     (tid, d['nome'], login, hash_pw(d['senha']), d.get('papel','operador')))
+
+    papel = d.get('papel', 'operador')
+    perms_str = _validar_permissoes(d.get('permissoes', []), modulos_plano, papel)
+
+    cur = db.execute(
+        "INSERT INTO tenant_usuarios (tenant_id,nome,login,senha_hash,papel,ativo,permissoes) VALUES(?,?,?,?,?,True,?) RETURNING id",
+        (tid, nome, login, hash_pw(d['senha']), papel, perms_str))
     uid = cur.fetchone()['id']
     db.commit()
     return jsonify({'ok': True, 'id': uid})
@@ -492,22 +572,35 @@ def api_usuario_update(uid):
     db = get_db()
     d = request.json or {}
     tid = session['tenant_id']
+
     admins = db.execute("SELECT COUNT(*) as c FROM tenant_usuarios WHERE tenant_id=? AND papel='admin' AND ativo=True", (tid,)).fetchone()['c']
     target = db.execute("SELECT papel FROM tenant_usuarios WHERE tenant_id=? AND id=?", (tid, uid)).fetchone()
-    if target and target['papel']=='admin' and d.get('papel')!='admin' and admins<=1:
+    if not target:
+        return jsonify({'ok': False, 'message': 'Usuário não encontrado'}), 404
+    if target['papel'] == 'admin' and d.get('papel') != 'admin' and admins <= 1:
         return jsonify({'ok': False, 'message': 'Não é possível remover o último administrador da loja'}), 400
-    
+
     ativo = True if str(d.get('ativo', 1)) in ['1', 'True', 'true'] else False
-    db.execute("UPDATE tenant_usuarios SET nome=?,login=?,papel=?,ativo=? WHERE tenant_id=? AND id=?",
-               (d['nome'], d['login'], d.get('papel','operador'), ativo, tid, uid))
+    papel = d.get('papel', 'operador')
+    _, modulos_plano, _ = _get_plano_info(db, tid)
+    perms_str = _validar_permissoes(d.get('permissoes', []), modulos_plano, papel)
+
+    db.execute("UPDATE tenant_usuarios SET nome=?,login=?,papel=?,ativo=?,permissoes=? WHERE tenant_id=? AND id=?",
+               (d['nome'], d['login'], papel, ativo, perms_str, tid, uid))
+
     if d.get('senha'):
-        if len(d['senha']) < 4:
-            return jsonify({'ok': False, 'message': 'Senha: mínimo 4 caracteres'}), 400
+        if len(d['senha']) < 8:
+            return jsonify({'ok': False, 'message': 'Senha: mínimo 8 caracteres'}), 400
         db.execute("UPDATE tenant_usuarios SET senha_hash=? WHERE tenant_id=? AND id=?", (hash_pw(d['senha']), tid, uid))
+
     db.commit()
     if uid == session['user_id']:
-        session['user_nome']   = d['nome']
-        session['papel']       = d.get('papel','operador')
+        session['user_nome'] = d['nome']
+        session['papel'] = papel
+        if papel != 'admin':
+            session['permissions'] = [p for p in perms_str.split(',') if p]
+        else:
+            session['permissions'] = ALL_MODULES
     return jsonify({'ok': True})
 
 @app.route('/api/usuarios/<int:uid>', methods=['DELETE'])
@@ -520,11 +613,12 @@ def api_usuario_delete(uid):
     tid = session['tenant_id']
     admins = db.execute("SELECT COUNT(*) as c FROM tenant_usuarios WHERE tenant_id=? AND papel='admin' AND ativo=True", (tid,)).fetchone()['c']
     target = db.execute("SELECT papel FROM tenant_usuarios WHERE tenant_id=? AND id=?", (tid, uid)).fetchone()
-    if target and target['papel']=='admin' and admins<=1:
+    if target and target['papel'] == 'admin' and admins <= 1:
         return jsonify({'ok': False, 'message': 'Não é possível remover o último administrador da loja'}), 400
     db.execute("UPDATE tenant_usuarios SET ativo=False, login=login || '_del_' || id::text WHERE tenant_id=? AND id=?", (tid, uid))
     db.commit()
     return jsonify({'ok': True})
+
 
 # ══════════════════════════════════════════════════════════════════════════
 # API – Dashboard

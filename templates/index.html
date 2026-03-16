@@ -1909,7 +1909,7 @@
       const conf = document.getElementById('cp-conf')?.value || '';
       if (!atual || !nova) { notify('Preencha todos os campos', 'error'); return; }
       if (nova !== conf) { notify('As senhas não conferem', 'error'); return; }
-      if (nova.length < 4) { notify('Nova senha deve ter ao menos 4 caracteres', 'error'); return; }
+      if (nova.length < 8) { notify('Nova senha deve ter ao menos 8 caracteres', 'error'); return; }
       const r = await api('/api/auth/change_password', 'POST', { senha_atual: atual, nova_senha: nova });
       if (r?.ok) { notify('Senha alterada com sucesso!', 'success'); closeModal(); }
       else notify(r?.message || 'Erro ao alterar senha', 'error');
@@ -1978,8 +1978,15 @@
     // USUARIOS — GERENCIAMENTO
     // ══════════════════════════════════════════════════════════════
     async function renderUsuarios() {
+      const plano = await api('/api/plano/info') || { max_usuarios: 999, modulos: Object.keys(ALL_MODULE_LABELS), total_usuarios: 0 };
+      window._planoInfo = plano;
+      const restam = plano.max_usuarios - plano.total_usuarios;
+      const limiteBadge = plano.max_usuarios < 999
+        ? `<span class="badge ${restam <= 1 ? 'badge-red' : 'badge-blue'}" style="font-size:11px">${plano.total_usuarios}/${plano.max_usuarios} usuários</span>`
+        : '';
       document.getElementById('topbar-actions').innerHTML = `
-    <button class="topbar-btn primary" onclick="novoUsuario()">+ Novo Usuário</button>
+    ${limiteBadge}
+    <button class="topbar-btn primary" onclick="novoUsuario()" ${restam <= 0 ? 'disabled title="Limite de usuários atingido"' : ''}>+ Novo Usuário</button>
   `;
       document.getElementById('content').innerHTML = `
     <div id="users-grid" class="users-grid">
@@ -2025,16 +2032,17 @@
 
     function buildPermGrid(papel, permissoesSelecionadas = []) {
       const isAdmin = papel === 'admin';
-      const allModules = ['dashboard', 'pdv', 'vendas', 'os', 'produtos', 'clientes', 'financeiro', 'relatorios', 'usuarios', 'settings'];
+      // Usa apenas os módulos liberados pelo plano no servidor
+      const planoModulos = window._planoInfo?.modulos || ['dashboard', 'pdv', 'vendas', 'os', 'produtos', 'clientes', 'financeiro', 'relatorios', 'usuarios', 'settings'];
       return `
     <div class="section-title" style="margin-top:4px">Permissões por Módulo</div>
     ${isAdmin ? `<div style="font-size:12px;color:var(--green);margin-bottom:8px">✅ Administrador tem acesso total a todos os módulos automaticamente.</div>` : ''}
     <div class="perm-grid" id="perm-grid">
-      ${allModules.map(m => {
+      ${planoModulos.map(m => {
         const checked = isAdmin || permissoesSelecionadas.includes(m);
         return `
           <div class="perm-item ${checked ? 'checked' : ''} ${isAdmin ? 'admin-locked' : ''}"
-               onclick="${isAdmin ? '' : "togglePerm(this,'${m}')"}" data-module="${m}">
+               onclick="${isAdmin ? '' : `togglePerm(this,'${m}')`}" data-module="${m}">
             <div class="perm-check">${checked ? '✓' : ''}</div>
             <span class="perm-label">${ALL_MODULE_ICONS[m] || '•'} ${ALL_MODULE_LABELS[m] || m}</span>
           </div>`;
@@ -2068,7 +2076,7 @@
     <div class="form-grid">
       <div class="form-group full"><label>Nome Completo *</label><input id="uf-nome" value="${u?.nome || ''}" placeholder="Ex: João Silva"></div>
       <div class="form-group"><label>Login *</label><input id="uf-login" value="${u?.login || ''}" placeholder="joao.silva" ${u?.id === currentUser?.id ? 'readonly' : ''}></div>
-      <div class="form-group"><label>Senha ${u ? '(deixe vazio para manter)' : '*'}</label><input type="password" id="uf-senha" placeholder="${u ? 'Nova senha (opcional)' : 'Mínimo 4 caracteres'}"></div>
+      <div class="form-group"><label>Senha ${u ? '(deixe vazio para manter)' : '*'}</label><input type="password" id="uf-senha" placeholder="${u ? 'Nova senha (opcional)' : 'Mínimo 8 caracteres'}"></div>
       <div class="form-group"><label>Papel</label>
         <select id="uf-papel" onchange="onPapelChange()">
           <option value="operador" ${papel === 'operador' ? 'selected' : ''}>👤 Operador</option>
