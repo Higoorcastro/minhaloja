@@ -73,8 +73,9 @@ def hash_pw(pw):
     return hashlib.sha256(pw.encode()).hexdigest()
 
 def init_db():
-    conn = get_db()
-    cur = conn.cursor()
+    raw_db = psycopg2.connect(DB_URL, cursor_factory=DictCursor)
+    raw_db.autocommit = True
+    cur = raw_db.cursor()
     
     # We omit 'usuarios' table because we will use 'tenant_usuarios' from superadmin instead
     # However, since this original app still depends on 'config' and standard modules,
@@ -242,11 +243,11 @@ def init_db():
         criado_em TIMESTAMP DEFAULT NOW()
     );
     """)
-    conn.commit()
+    raw_db.commit()
 
     # We do NOT run sqlite migrations like 'db_migrate(conn)' or seed static categories here.
     # Seed categories can be done dynamically when creating a tenant inside the superadmin.
-    conn.close()
+    raw_db.close()
 
 # Nenhuma db_migrate() ou run_setup_wizard() necessária no modelo SaaS, 
 # pois isso é gerido pelo Painel do Superadmin agora.# ── Helpers ────────────────────────────────────────────────────────────────
