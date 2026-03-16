@@ -20,7 +20,7 @@ EXPOSE 5678
 EXPOSE 5679
 
 CMD ["sh", "-c", "if [ \"$APP_TYPE\" = \"admin\" ]; then \
-    cd superadmin && gunicorn -b 0.0.0.0:5679 app:app; \
+    gunicorn --chdir superadmin -b 0.0.0.0:5679 app:app; \
     else \
     gunicorn -b 0.0.0.0:5678 app:app; \
     fi"]

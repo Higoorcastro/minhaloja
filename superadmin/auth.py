@@ -1,6 +1,6 @@
 from functools import wraps
 from flask import session, jsonify, redirect, request
-from .models import SuperadminUsuario
+from models import SuperadminUsuario
 
 def require_superadmin(f):
     @wraps(f)
