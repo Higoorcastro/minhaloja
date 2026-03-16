@@ -692,7 +692,7 @@ def api_dashboard():
     os_ab   = db.execute("SELECT COUNT(*) as c FROM ordens_servico WHERE tenant_id=? AND status NOT IN ('CONCLUIDA','CANCELADA')", (tid,)).fetchone()['c']
     os_mes  = db.execute("SELECT COALESCE(SUM(total),0) as t FROM ordens_servico WHERE tenant_id=? AND DATE(criado_em)>=DATE(?) AND status='CONCLUIDA'", (tid, mes_ini)).fetchone()['t']
     desp    = db.execute("SELECT COALESCE(SUM(valor),0) as t FROM despesas WHERE tenant_id=? AND DATE(data)>=DATE(?)", (tid, mes_ini)).fetchone()['t']
-    prod_bx = db.execute("SELECT COUNT(*) as c FROM produtos WHERE tenant_id=? AND estoque<=estoque_minimo AND ativo=True", (tid,)).fetchone()['c']
+    prod_bx = db.execute("SELECT COUNT(*) as c FROM produtos WHERE tenant_id=? AND estoque<=estoque_minimo AND ativo=1", (tid,)).fetchone()['c']
     receita = v_mes + os_mes
     v7d = rows_to_list(db.execute(
         "SELECT DATE(criado_em)::text as dia,COALESCE(SUM(total),0) as total FROM vendas WHERE tenant_id=? AND criado_em >= (CURRENT_DATE - INTERVAL '6 days') GROUP BY DATE(criado_em) ORDER BY dia", (tid,)).fetchall())
@@ -721,7 +721,7 @@ def api_categorias():
 def api_produtos_list():
     db=get_db(); q=request.args.get('q',''); cat=request.args.get('categoria',''); baixo=request.args.get('estoque_baixo','')
     tid=session['tenant_id']
-    sql="SELECT p.*,c.nome as categoria_nome FROM produtos p LEFT JOIN categorias c ON c.id=p.categoria_id WHERE p.tenant_id=? AND p.ativo=True"; params=[tid]
+    sql="SELECT p.*,c.nome as categoria_nome FROM produtos p LEFT JOIN categorias c ON c.id=p.categoria_id WHERE p.tenant_id=? AND p.ativo=1"; params=[tid]
     if q: sql+=" AND (p.nome LIKE ? OR p.codigo LIKE ?)"; params+=[f'%{q}%']*2
     if cat: sql+=" AND p.categoria_id=?"; params.append(cat)
     if baixo: sql+=" AND p.estoque<=p.estoque_minimo"
@@ -963,7 +963,7 @@ def api_compra_create():
 @require_auth
 def api_vendedores_list():
     db=get_db(); tid=session['tenant_id']
-    return jsonify(rows_to_list(db.execute("SELECT * FROM vendedores WHERE tenant_id=? AND ativo=True ORDER BY nome", (tid,)).fetchall()))
+    return jsonify(rows_to_list(db.execute("SELECT * FROM vendedores WHERE tenant_id=? AND ativo=1 ORDER BY nome", (tid,)).fetchall()))
 
 @app.route('/api/vendedores', methods=['POST'])
 @require_auth
@@ -1182,7 +1182,7 @@ def rel_financeiro():
 @require_module('relatorios')
 def rel_estoque():
     db=get_db(); tid=session['tenant_id']
-    rows=db.execute("SELECT p.*,c.nome as categoria_nome,(p.estoque*p.preco_custo) as valor_estoque FROM produtos p LEFT JOIN categorias c ON c.id=p.categoria_id WHERE p.tenant_id=? AND p.ativo=True ORDER BY p.nome", (tid,)).fetchall()
+    rows=db.execute("SELECT p.*,c.nome as categoria_nome,(p.estoque*p.preco_custo) as valor_estoque FROM produtos p LEFT JOIN categorias c ON c.id=p.categoria_id WHERE p.tenant_id=? AND p.ativo=1 ORDER BY p.nome", (tid,)).fetchall()
     total_val=sum(r['valor_estoque'] or 0 for r in rows)
     return jsonify({'produtos':rows_to_list(rows),'valor_total_estoque':total_val,'produtos_estoque_baixo':[dict(r) for r in rows if r['estoque']<=r['estoque_minimo']]})
 
