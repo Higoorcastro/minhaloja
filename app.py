@@ -288,8 +288,9 @@ def init_db():
             forma_pagamento TEXT DEFAULT 'DINHEIRO',
             criado_em TIMESTAMP DEFAULT NOW()
         );
+        """)
 
-        -- Migração: adiciona coluna permissoes se não existir
+        # Migração: adiciona coluna permissoes se não existir
         cur.execute("ALTER TABLE tenant_usuarios ADD COLUMN IF NOT EXISTS permissoes TEXT DEFAULT '';")
         
         raw_db.commit()
