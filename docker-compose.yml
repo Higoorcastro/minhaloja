@@ -6,8 +6,8 @@ services:
     container_name: minhaloja_db
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgrespassword
-      POSTGRES_DB: superadmin_db
+      POSTGRES_PASSWORD: hzqegUOcjhT1oqw0Gxfn4F3oQh1u1JdJ
+      POSTGRES_DB:  minhaloja_db
     ports:
       - "5432:5432"
     volumes:
@@ -21,7 +21,7 @@ services:
     container_name: minhaloja_app
     environment:
       - APP_TYPE=loja
-      - DB_URL=postgresql://postgres:postgrespassword@db:5432/superadmin_db
+      - DB_URL=postgresql://postgres:hzqegUOcjhT1oqw0Gxfn4F3oQh1u1JdJ@db:5432/minhaloja_db
       - SECRET_KEY=sua_chave_secreta_aqui
     ports:
       - "5678:5678"
@@ -36,7 +36,7 @@ services:
     container_name: minhaloja_admin
     environment:
       - APP_TYPE=admin
-      - DB_URL=postgresql://postgres:postgrespassword@db:5432/superadmin_db
+      - DB_URL=postgresql://postgres:hzqegUOcjhT1oqw0Gxfn4F3oQh1u1JdJ@db:5432/minhaloja_db
       - SECRET_KEY=sua_chave_secreta_aqui
     ports:
       - "5679:5679"
