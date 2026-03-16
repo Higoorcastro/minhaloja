@@ -113,188 +113,188 @@ def verify_pw(plain, stored_hash):
     return False
 
 def init_db():
-    raw_db = psycopg2.connect(DB_URL, cursor_factory=DictCursor)
-    raw_db.autocommit = True
-    cur = raw_db.cursor()
-    
-    # We omit 'usuarios' table because we will use 'tenant_usuarios' from superadmin instead
-    # However, since this original app still depends on 'config' and standard modules,
-    # we inject 'tenant_id' inside the legacy tables.
-    cur.execute("""
-    CREATE TABLE IF NOT EXISTS config (
-        id SERIAL PRIMARY KEY,
-        tenant_id INTEGER REFERENCES tenants(id) ON DELETE CASCADE,
-        chave TEXT NOT NULL,
-        valor TEXT,
-        UNIQUE(tenant_id, chave)
-    );
-    CREATE TABLE IF NOT EXISTS categorias (
-        id SERIAL PRIMARY KEY,
-        tenant_id INTEGER REFERENCES tenants(id) ON DELETE CASCADE,
-        nome TEXT NOT NULL,
-        UNIQUE(tenant_id, nome)
-    );
-    CREATE TABLE IF NOT EXISTS produtos (
-        id SERIAL PRIMARY KEY,
-        tenant_id INTEGER REFERENCES tenants(id) ON DELETE CASCADE,
-        codigo TEXT,
-        nome TEXT NOT NULL,
-        descricao TEXT,
-        categoria_id INTEGER REFERENCES categorias(id),
-        preco_custo DECIMAL(10,2) DEFAULT 0,
-        preco_venda DECIMAL(10,2) DEFAULT 0,
-        estoque DECIMAL DEFAULT 0,
-        estoque_minimo DECIMAL DEFAULT 0,
-        unidade TEXT DEFAULT 'UN',
-        ativo INTEGER DEFAULT 1,
-        criado_em TIMESTAMP DEFAULT NOW(),
-        UNIQUE(tenant_id, codigo)
-    );
-    CREATE TABLE IF NOT EXISTS clientes (
-        id SERIAL PRIMARY KEY,
-        tenant_id INTEGER REFERENCES tenants(id) ON DELETE CASCADE,
-        nome TEXT NOT NULL,
-        cpf_cnpj TEXT,
-        telefone TEXT,
-        email TEXT,
-        endereco TEXT,
-        criado_em TIMESTAMP DEFAULT NOW()
-    );
-    CREATE TABLE IF NOT EXISTS vendedores (
-        id SERIAL PRIMARY KEY,
-        tenant_id INTEGER REFERENCES tenants(id) ON DELETE CASCADE,
-        nome TEXT NOT NULL,
-        ativo INTEGER DEFAULT 1,
-        criado_em TIMESTAMP DEFAULT NOW()
-    );
-    CREATE TABLE IF NOT EXISTS vendas (
-        id SERIAL PRIMARY KEY,
-        tenant_id INTEGER REFERENCES tenants(id) ON DELETE CASCADE,
-        numero TEXT,
-        cliente_id INTEGER REFERENCES clientes(id),
-        cliente_nome TEXT,
-        vendedor_id INTEGER REFERENCES vendedores(id),
-        vendedor_nome TEXT,
-        subtotal DECIMAL(10,2) DEFAULT 0,
-        desconto DECIMAL(10,2) DEFAULT 0,
-        total DECIMAL(10,2) DEFAULT 0,
-        forma_pagamento TEXT DEFAULT 'DINHEIRO',
-        status TEXT DEFAULT 'CONCLUIDA',
-        observacao TEXT,
-        motivo_cancelamento TEXT,
-        criado_em TIMESTAMP DEFAULT NOW(),
-        UNIQUE(tenant_id, numero)
-    );
-    CREATE TABLE IF NOT EXISTS venda_itens (
-        id SERIAL PRIMARY KEY,
-        venda_id INTEGER NOT NULL REFERENCES vendas(id) ON DELETE CASCADE,
-        produto_id INTEGER REFERENCES produtos(id),
-        produto_nome TEXT,
-        quantidade DECIMAL(10,2) NOT NULL,
-        preco_unitario DECIMAL(10,2) NOT NULL,
-        desconto DECIMAL(10,2) DEFAULT 0,
-        subtotal DECIMAL(10,2) NOT NULL
-    );
-    CREATE TABLE IF NOT EXISTS ordens_servico (
-        id SERIAL PRIMARY KEY,
-        tenant_id INTEGER REFERENCES tenants(id) ON DELETE CASCADE,
-        numero TEXT,
-        cliente_id INTEGER REFERENCES clientes(id),
-        cliente_nome TEXT,
-        cliente_cpf TEXT,
-        cliente_telefone TEXT,
-        equipamento TEXT,
-        problema TEXT,
-        diagnostico TEXT,
-        solucao TEXT,
-        tecnico TEXT,
-        status TEXT DEFAULT 'ABERTA',
-        prioridade TEXT DEFAULT 'NORMAL',
-        previsao TEXT,
-        valor_servico DECIMAL(10,2) DEFAULT 0,
-        valor_pecas DECIMAL(10,2) DEFAULT 0,
-        desconto DECIMAL(10,2) DEFAULT 0,
-        total DECIMAL(10,2) DEFAULT 0,
-        forma_pagamento TEXT DEFAULT 'DINHEIRO',
-        observacao TEXT,
-        checklist TEXT,
-        senha_padrao TEXT,
-        senha_pin TEXT,
-        criado_em TIMESTAMP DEFAULT NOW(),
-        atualizado_em TIMESTAMP DEFAULT NOW(),
-        UNIQUE(tenant_id, numero)
-    );
-    CREATE TABLE IF NOT EXISTS os_itens (
-        id SERIAL PRIMARY KEY,
-        os_id INTEGER NOT NULL REFERENCES ordens_servico(id) ON DELETE CASCADE,
-        produto_id INTEGER REFERENCES produtos(id),
-        produto_nome TEXT,
-        quantidade DECIMAL(10,2) NOT NULL,
-        preco_unitario DECIMAL(10,2) NOT NULL,
-        subtotal DECIMAL(10,2) NOT NULL
-    );
-    CREATE TABLE IF NOT EXISTS despesas (
-        id SERIAL PRIMARY KEY,
-        tenant_id INTEGER REFERENCES tenants(id) ON DELETE CASCADE,
-        descricao TEXT NOT NULL,
-        categoria TEXT DEFAULT 'GERAL',
-        valor DECIMAL(10,2) NOT NULL,
-        data DATE NOT NULL,
-        forma_pagamento TEXT DEFAULT 'DINHEIRO',
-        observacao TEXT,
-        criado_em TIMESTAMP DEFAULT NOW()
-    );
-    CREATE TABLE IF NOT EXISTS compras (
-        id SERIAL PRIMARY KEY,
-        tenant_id INTEGER REFERENCES tenants(id) ON DELETE CASCADE,
-        numero_nota TEXT,
-        fornecedor TEXT,
-        total DECIMAL(10,2) DEFAULT 0,
-        data DATE NOT NULL,
-        observacao TEXT,
-        criado_em TIMESTAMP DEFAULT NOW()
-    );
-    CREATE TABLE IF NOT EXISTS compra_itens (
-        id SERIAL PRIMARY KEY,
-        compra_id INTEGER NOT NULL REFERENCES compras(id) ON DELETE CASCADE,
-        produto_id INTEGER REFERENCES produtos(id),
-        produto_nome TEXT,
-        quantidade DECIMAL(10,2) NOT NULL,
-        preco_unitario DECIMAL(10,2) NOT NULL,
-        subtotal DECIMAL(10,2) NOT NULL
-    );
-    CREATE TABLE IF NOT EXISTS contas_receber (
-        id SERIAL PRIMARY KEY,
-        tenant_id INTEGER REFERENCES tenants(id) ON DELETE CASCADE,
-        cliente_id INTEGER REFERENCES clientes(id),
-        descricao TEXT NOT NULL,
-        valor_total DECIMAL(10,2) NOT NULL,
-        data_vencimento DATE NOT NULL,
-        status TEXT DEFAULT 'PENDENTE',
-        criado_em TIMESTAMP DEFAULT NOW(),
-        atualizado_em TIMESTAMP DEFAULT NOW()
-    );
-    CREATE TABLE IF NOT EXISTS recebimentos (
-        id SERIAL PRIMARY KEY,
-        conta_id INTEGER NOT NULL REFERENCES contas_receber(id) ON DELETE CASCADE,
-        valor_pago DECIMAL(10,2) NOT NULL,
-        data_pagamento DATE NOT NULL,
-        forma_pagamento TEXT DEFAULT 'DINHEIRO',
-        criado_em TIMESTAMP DEFAULT NOW()
-    );
-    """)
-    raw_db.commit()
+    print("📋 Tentando inicializar tabelas...")
+    try:
+        raw_db = psycopg2.connect(DB_URL, cursor_factory=DictCursor, connect_timeout=5)
+        raw_db.autocommit = True
+    except Exception as e:
+        print(f"!!! Error in init_db connection: {e}")
+        return
 
-    # Migração: adiciona coluna permissoes se não existir (bancos existentes)
-    cur.execute("""
-        ALTER TABLE tenant_usuarios 
-        ADD COLUMN IF NOT EXISTS permissoes TEXT DEFAULT '';
-    """)
-    raw_db.commit()
+    try:
+        cur = raw_db.cursor()
+        cur.execute("""
+        CREATE TABLE IF NOT EXISTS config (
+            id SERIAL PRIMARY KEY,
+            tenant_id INTEGER REFERENCES tenants(id) ON DELETE CASCADE,
+            chave TEXT NOT NULL,
+            valor TEXT,
+            UNIQUE(tenant_id, chave)
+        );
+        CREATE TABLE IF NOT EXISTS categorias (
+            id SERIAL PRIMARY KEY,
+            tenant_id INTEGER REFERENCES tenants(id) ON DELETE CASCADE,
+            nome TEXT NOT NULL,
+            UNIQUE(tenant_id, nome)
+        );
+        CREATE TABLE IF NOT EXISTS produtos (
+            id SERIAL PRIMARY KEY,
+            tenant_id INTEGER REFERENCES tenants(id) ON DELETE CASCADE,
+            codigo TEXT,
+            nome TEXT NOT NULL,
+            descricao TEXT,
+            categoria_id INTEGER REFERENCES categorias(id),
+            preco_custo DECIMAL(10,2) DEFAULT 0,
+            preco_venda DECIMAL(10,2) DEFAULT 0,
+            estoque DECIMAL DEFAULT 0,
+            estoque_minimo DECIMAL DEFAULT 0,
+            unidade TEXT DEFAULT 'UN',
+            ativo INTEGER DEFAULT 1,
+            criado_em TIMESTAMP DEFAULT NOW(),
+            UNIQUE(tenant_id, codigo)
+        );
+        CREATE TABLE IF NOT EXISTS clientes (
+            id SERIAL PRIMARY KEY,
+            tenant_id INTEGER REFERENCES tenants(id) ON DELETE CASCADE,
+            nome TEXT NOT NULL,
+            cpf_cnpj TEXT,
+            telefone TEXT,
+            email TEXT,
+            endereco TEXT,
+            criado_em TIMESTAMP DEFAULT NOW()
+        );
+        CREATE TABLE IF NOT EXISTS vendedores (
+            id SERIAL PRIMARY KEY,
+            tenant_id INTEGER REFERENCES tenants(id) ON DELETE CASCADE,
+            nome TEXT NOT NULL,
+            ativo INTEGER DEFAULT 1,
+            criado_em TIMESTAMP DEFAULT NOW()
+        );
+        CREATE TABLE IF NOT EXISTS vendas (
+            id SERIAL PRIMARY KEY,
+            tenant_id INTEGER REFERENCES tenants(id) ON DELETE CASCADE,
+            numero TEXT,
+            cliente_id INTEGER REFERENCES clientes(id),
+            cliente_nome TEXT,
+            vendedor_id INTEGER REFERENCES vendedores(id),
+            vendedor_nome TEXT,
+            subtotal DECIMAL(10,2) DEFAULT 0,
+            desconto DECIMAL(10,2) DEFAULT 0,
+            total DECIMAL(10,2) DEFAULT 0,
+            forma_pagamento TEXT DEFAULT 'DINHEIRO',
+            status TEXT DEFAULT 'CONCLUIDA',
+            observacao TEXT,
+            motivo_cancelamento TEXT,
+            criado_em TIMESTAMP DEFAULT NOW(),
+            UNIQUE(tenant_id, numero)
+        );
+        CREATE TABLE IF NOT EXISTS venda_itens (
+            id SERIAL PRIMARY KEY,
+            venda_id INTEGER NOT NULL REFERENCES vendas(id) ON DELETE CASCADE,
+            produto_id INTEGER REFERENCES produtos(id),
+            produto_nome TEXT,
+            quantidade DECIMAL(10,2) NOT NULL,
+            preco_unitario DECIMAL(10,2) NOT NULL,
+            desconto DECIMAL(10,2) DEFAULT 0,
+            subtotal DECIMAL(10,2) NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS ordens_servico (
+            id SERIAL PRIMARY KEY,
+            tenant_id INTEGER REFERENCES tenants(id) ON DELETE CASCADE,
+            numero TEXT,
+            cliente_id INTEGER REFERENCES clientes(id),
+            cliente_nome TEXT,
+            cliente_cpf TEXT,
+            cliente_telefone TEXT,
+            equipamento TEXT,
+            problema TEXT,
+            diagnostico TEXT,
+            solucao TEXT,
+            tecnico TEXT,
+            status TEXT DEFAULT 'ABERTA',
+            prioridade TEXT DEFAULT 'NORMAL',
+            previsao TEXT,
+            valor_servico DECIMAL(10,2) DEFAULT 0,
+            valor_pecas DECIMAL(10,2) DEFAULT 0,
+            desconto DECIMAL(10,2) DEFAULT 0,
+            total DECIMAL(10,2) DEFAULT 0,
+            forma_pagamento TEXT DEFAULT 'DINHEIRO',
+            observacao TEXT,
+            checklist TEXT,
+            senha_padrao TEXT,
+            senha_pin TEXT,
+            criado_em TIMESTAMP DEFAULT NOW(),
+            atualizado_em TIMESTAMP DEFAULT NOW(),
+            UNIQUE(tenant_id, numero)
+        );
+        CREATE TABLE IF NOT EXISTS os_itens (
+            id SERIAL PRIMARY KEY,
+            os_id INTEGER NOT NULL REFERENCES ordens_servico(id) ON DELETE CASCADE,
+            produto_id INTEGER REFERENCES produtos(id),
+            produto_nome TEXT,
+            quantidade DECIMAL(10,2) NOT NULL,
+            preco_unitario DECIMAL(10,2) NOT NULL,
+            subtotal DECIMAL(10,2) NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS despesas (
+            id SERIAL PRIMARY KEY,
+            tenant_id INTEGER REFERENCES tenants(id) ON DELETE CASCADE,
+            descricao TEXT NOT NULL,
+            categoria TEXT DEFAULT 'GERAL',
+            valor DECIMAL(10,2) NOT NULL,
+            data DATE NOT NULL,
+            forma_pagamento TEXT DEFAULT 'DINHEIRO',
+            observacao TEXT,
+            criado_em TIMESTAMP DEFAULT NOW()
+        );
+        CREATE TABLE IF NOT EXISTS compras (
+            id SERIAL PRIMARY KEY,
+            tenant_id INTEGER REFERENCES tenants(id) ON DELETE CASCADE,
+            numero_nota TEXT,
+            fornecedor TEXT,
+            total DECIMAL(10,2) DEFAULT 0,
+            data DATE NOT NULL,
+            observacao TEXT,
+            criado_em TIMESTAMP DEFAULT NOW()
+        );
+        CREATE TABLE IF NOT EXISTS compra_itens (
+            id SERIAL PRIMARY KEY,
+            compra_id INTEGER NOT NULL REFERENCES compras(id) ON DELETE CASCADE,
+            produto_id INTEGER REFERENCES produtos(id),
+            produto_nome TEXT,
+            quantidade DECIMAL(10,2) NOT NULL,
+            preco_unitario DECIMAL(10,2) NOT NULL,
+            subtotal DECIMAL(10,2) NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS contas_receber (
+            id SERIAL PRIMARY KEY,
+            tenant_id INTEGER REFERENCES tenants(id) ON DELETE CASCADE,
+            cliente_id INTEGER REFERENCES clientes(id),
+            descricao TEXT NOT NULL,
+            valor_total DECIMAL(10,2) NOT NULL,
+            data_vencimento DATE NOT NULL,
+            status TEXT DEFAULT 'PENDENTE',
+            criado_em TIMESTAMP DEFAULT NOW(),
+            atualizado_em TIMESTAMP DEFAULT NOW()
+        );
+        CREATE TABLE IF NOT EXISTS recebimentos (
+            id SERIAL PRIMARY KEY,
+            conta_id INTEGER NOT NULL REFERENCES contas_receber(id) ON DELETE CASCADE,
+            valor_pago DECIMAL(10,2) NOT NULL,
+            data_pagamento DATE NOT NULL,
+            forma_pagamento TEXT DEFAULT 'DINHEIRO',
+            criado_em TIMESTAMP DEFAULT NOW()
+        );
 
-    # We do NOT run sqlite migrations like 'db_migrate(conn)' or seed static categories here.
-    # Seed categories can be done dynamically when creating a tenant inside the superadmin.
-    raw_db.close()
+        -- Migração: adiciona coluna permissoes se não existir
+        cur.execute("ALTER TABLE tenant_usuarios ADD COLUMN IF NOT EXISTS permissoes TEXT DEFAULT '';")
+        
+        raw_db.commit()
+        print("✅ Banco de dados inicializado com sucesso.")
+    except Exception as e:
+        print(f"!!! Error executing init_db SQL: {e}")
+    finally:
+        raw_db.close()
 
 # Nenhuma db_migrate() ou run_setup_wizard() necessária no modelo SaaS, 
 # pois isso é gerido pelo Painel do Superadmin agora.
