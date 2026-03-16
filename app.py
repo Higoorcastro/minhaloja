@@ -3,13 +3,14 @@ import sys
 import psycopg2
 from psycopg2.extras import DictCursor
 import hashlib
+import bcrypt
 import secrets
-import threading
-import webbrowser
 from datetime import datetime, date
 from functools import wraps
 from flask import (Flask, render_template, request, jsonify, g,
                    session, redirect)
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -26,15 +27,33 @@ def data_path(filename):
         base = os.path.dirname(os.path.abspath(__file__))
     return os.path.join(base, filename)
 
-DB_URL = os.getenv('DB_URL', 'postgresql://postgres:hzqegUOcjhT1oqw0Gxfn4F3oQh1u1JdJ@localhost:5432/minhaloja_db')
+DB_URL = os.getenv('DB_URL')
+if not DB_URL:
+    raise RuntimeError('FATAL: DB_URL environment variable not set. Refusing to start.')
 
 app = Flask(__name__,
             template_folder=resource_path('templates'),
             static_folder=data_path('static'))
-app.secret_key = os.getenv('SECRET_KEY', 'gestao-loja-secret-key-2024-xK9pL')
+
+_secret = os.getenv('SECRET_KEY')
+if not _secret:
+    raise RuntimeError('FATAL: SECRET_KEY environment variable not set. Refusing to start.')
+app.secret_key = _secret
+app.config['SESSION_COOKIE_HTTPONLY'] = True
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+app.config['SESSION_COOKIE_SECURE'] = os.getenv('FLASK_ENV') != 'development'
+
+# Rate Limiter (armazenado em memória; para produção multi-worker use Redis)
+limiter = Limiter(
+    app=app,
+    key_func=get_remote_address,
+    default_limits=[],
+    storage_uri='memory://'
+)
 
 ALL_MODULES = ['dashboard','pdv','vendas','os','produtos',
                'clientes','financeiro','relatorios','usuarios', 'settings']
+
 
 # ── Database ───────────────────────────────────────────────────────────────
 class PostgresWrapper:
@@ -70,7 +89,23 @@ def close_db(e=None):
     if db: db.close()
 
 def hash_pw(pw):
-    return hashlib.sha256(pw.encode()).hexdigest()
+    """Hash a password using bcrypt."""
+    return bcrypt.hashpw(pw.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+
+def verify_pw(plain, stored_hash):
+    """Verify password, supports bcrypt and legacy SHA-256 (auto-migrates)."""
+    db = get_db()
+    # Try bcrypt first
+    try:
+        if bcrypt.checkpw(plain.encode('utf-8'), stored_hash.encode('utf-8')):
+            return True
+    except Exception:
+        pass
+    # Fallback: check legacy SHA-256 and migrate to bcrypt transparently
+    legacy = hashlib.sha256(plain.encode()).hexdigest()
+    if secrets.compare_digest(legacy, stored_hash):
+        return True, 'migrate'
+    return False
 
 def init_db():
     raw_db = psycopg2.connect(DB_URL, cursor_factory=DictCursor)
@@ -250,7 +285,27 @@ def init_db():
     raw_db.close()
 
 # Nenhuma db_migrate() ou run_setup_wizard() necessária no modelo SaaS, 
-# pois isso é gerido pelo Painel do Superadmin agora.# ── Helpers ────────────────────────────────────────────────────────────────
+# pois isso é gerido pelo Painel do Superadmin agora.
+
+# ── Security Headers ───────────────────────────────────────────────────────
+@app.after_request
+def add_security_headers(resp):
+    resp.headers['X-Content-Type-Options'] = 'nosniff'
+    resp.headers['X-Frame-Options'] = 'DENY'
+    resp.headers['X-XSS-Protection'] = '1; mode=block'
+    resp.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+    resp.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
+    resp.headers['Content-Security-Policy'] = (
+        "default-src 'self'; "
+        "script-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://fonts.gstatic.com; "
+        "font-src 'self' https://fonts.gstatic.com; "
+        "img-src 'self' data: blob:; "
+        "connect-src 'self';"
+    )
+    return resp
+
+# ── Helpers ────────────────────────────────────────────────────────────────
 def rows_to_list(rows):
     return [dict(r) for r in rows]
 
@@ -259,11 +314,6 @@ def next_number(prefix, table, col):
     tenant_id = session.get('tenant_id')
     n = (db.execute(f"SELECT COUNT(*) as c FROM {table} WHERE tenant_id=%s", (tenant_id,)).fetchone()['c'] or 0) + 1
     return f"{prefix}{str(n).zfill(6)}"
-
-def get_user_permissions(user_id):
-    # No SQL superadmin original model, permissions are defined by the global role.
-    # Because we migrated to `tenant_usuarios`, we will simplify it relying on their 'papel'.
-    return ALL_MODULES
 
 def require_auth(f):
     @wraps(f)
@@ -288,12 +338,12 @@ def require_module(*modules):
         return decorated
     return decorator
 
-# ── API Config ─────────────────────────────────────────────────────────────
 @app.route('/api/config', methods=['GET'])
 @require_auth
 def api_get_config():
     db = get_db()
-    rows = db.execute("SELECT chave, valor FROM config").fetchall()
+    tid = session.get('tenant_id')
+    rows = db.execute("SELECT chave, valor FROM config WHERE tenant_id=?", (tid,)).fetchall()
     return jsonify({r['chave']: r['valor'] for r in rows})
 
 @app.route('/api/config', methods=['POST'])
@@ -319,32 +369,43 @@ def login_page():
     return render_template('login.html')
 
 @app.route('/api/auth/login', methods=['POST'])
+@limiter.limit('10 per minute')
 def api_login():
     d = request.json or {}
     login = (d.get('login') or '').strip()
     senha = d.get('senha') or ''
-    if not login or not senha:
-        return jsonify({'ok': False, 'message': 'Preencha login e senha'}), 400
+    # Validação mínima no backend (não confiar no front)
+    if not login or not senha or len(login) > 100 or len(senha) > 200:
+        return jsonify({'ok': False, 'message': 'Credenciais inválidas'}), 400
     db = get_db()
-    
-    # Busca agora em tenant_usuarios global do painel
+
     user = db.execute(
-        "SELECT * FROM tenant_usuarios WHERE login=? AND senha_hash=? AND ativo=True",
-        (login, hash_pw(senha))).fetchone()
-        
+        "SELECT * FROM tenant_usuarios WHERE login=? AND ativo=True",
+        (login,)).fetchone()
+
     if not user:
-        return jsonify({'ok': False, 'message': 'Login ou senha incorretos ou acessos desativados'}), 401
-    
-    # Checa também se o tenant dele está ativo
+        return jsonify({'ok': False, 'message': 'Login ou senha incorretos'}), 401
+
+    result = verify_pw(senha, user['senha_hash'])
+    if not result:
+        return jsonify({'ok': False, 'message': 'Login ou senha incorretos'}), 401
+
+    # Migração transparente de SHA-256 para bcrypt
+    if isinstance(result, tuple) and result[1] == 'migrate':
+        db.execute("UPDATE tenant_usuarios SET senha_hash=? WHERE id=?",
+                   (hash_pw(senha), user['id']))
+        db.commit()
+
     tenant = db.execute("SELECT status FROM tenants WHERE id=?", (user['tenant_id'],)).fetchone()
     if not tenant or tenant['status'] != 'ATIVO':
-        return jsonify({'ok': False, 'message': 'Sua loja está bloqueada no sistema. Contate o administrador.'}), 403
-        
-    session['user_id']    = user['id']
-    session['tenant_id']  = user['tenant_id'] # Guardando o núcleo da loja
-    session['user_nome']  = user['nome']
-    session['papel']      = user['papel']
-    session['permissions']= ALL_MODULES
+        return jsonify({'ok': False, 'message': 'Loja bloqueada. Contate o administrador.'}), 403
+
+    session.clear()
+    session['user_id']     = user['id']
+    session['tenant_id']   = user['tenant_id']
+    session['user_nome']   = user['nome']
+    session['papel']       = user['papel']
+    session['permissions'] = ALL_MODULES
     return jsonify({'ok': True, 'nome': user['nome'], 'papel': user['papel'], 'permissions': ALL_MODULES})
 
 @app.route('/api/auth/logout', methods=['POST'])
@@ -364,18 +425,21 @@ def api_me():
 
 @app.route('/api/auth/change_password', methods=['POST'])
 @require_auth
+@limiter.limit('5 per minute')
 def api_change_password():
     d = request.json or {}
     uid = session['user_id']
     tid = session['tenant_id']
     db = get_db()
     user = db.execute("SELECT * FROM tenant_usuarios WHERE id=? AND tenant_id=?", (uid, tid)).fetchone()
-    if user['senha_hash'] != hash_pw(d.get('senha_atual','')):
+    if not user:
+        return jsonify({'ok': False, 'message': 'Usuário não encontrado'}), 404
+    if not verify_pw(d.get('senha_atual', ''), user['senha_hash']):
         return jsonify({'ok': False, 'message': 'Senha atual incorreta'}), 400
-    nova = d.get('nova_senha','')
-    if len(nova) < 4:
-        return jsonify({'ok': False, 'message': 'Nova senha: mínimo 4 caracteres'}), 400
-    db.execute("UPDATE tenant_usuarios SET senha_hash=? WHERE id=?", (hash_pw(nova), uid))
+    nova = d.get('nova_senha', '')
+    if len(nova) < 8:
+        return jsonify({'ok': False, 'message': 'Nova senha: mínimo 8 caracteres'}), 400
+    db.execute("UPDATE tenant_usuarios SET senha_hash=? WHERE id=? AND tenant_id=?", (hash_pw(nova), uid, tid))
     db.commit()
     return jsonify({'ok': True})
 

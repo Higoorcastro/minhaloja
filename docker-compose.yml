@@ -8,8 +8,8 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: hzqegUOcjhT1oqw0Gxfn4F3oQh1u1JdJ
       POSTGRES_DB:  minhaloja_db
-    ports:
-      - "5432:5432"
+    # Porta do banco NUNCA deve ser exposta publicamente em producao
+    # ports: - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     restart: unless-stopped
@@ -21,8 +21,11 @@ services:
     container_name: minhaloja_app
     environment:
       - APP_TYPE=loja
+      - FLASK_ENV=production
       - DB_URL=postgresql://postgres:hzqegUOcjhT1oqw0Gxfn4F3oQh1u1JdJ@db:5432/minhaloja_db
-      - SECRET_KEY=sua_chave_secreta_aqui
+      # IMPORTANTE: Gere uma chave aleatória e segura antes de fazer deploy!
+      # python3 -c "import secrets; print(secrets.token_hex(32))"
+      - SECRET_KEY=${SECRET_KEY}
     ports:
       - "5678:5678"
     depends_on:
@@ -36,8 +39,11 @@ services:
     container_name: minhaloja_admin
     environment:
       - APP_TYPE=admin
+      - FLASK_ENV=production
       - DB_URL=postgresql://postgres:hzqegUOcjhT1oqw0Gxfn4F3oQh1u1JdJ@db:5432/minhaloja_db
-      - SECRET_KEY=sua_chave_secreta_aqui
+      # IMPORTANTE: Gere uma chave aleatória e segura antes de fazer deploy!
+      # python3 -c "import secrets; print(secrets.token_hex(32))"
+      - SECRET_KEY=${SECRET_KEY}
     ports:
       - "5679:5679"
     depends_on:

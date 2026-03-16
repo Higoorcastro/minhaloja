@@ -1,7 +1,11 @@
 import os
 import hashlib
+import bcrypt
+import secrets
 from datetime import datetime, date
 from flask import Flask, render_template, request, jsonify, session, redirect
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 from dotenv import load_dotenv
 
 # Importando DB e Modelos
@@ -12,14 +16,48 @@ from auth import require_superadmin
 load_dotenv()
 
 app = Flask(__name__)
-app.secret_key = os.environ.get('SECRET_KEY', 'super-admin-secret-key-deploy-change-later')
-app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DB_URL', 'postgresql://postgres:hzqegUOcjhT1oqw0Gxfn4F3oQh1u1JdJ@localhost:5432/minhaloja_db')
+_secret = os.environ.get('SECRET_KEY')
+if not _secret:
+    raise RuntimeError('FATAL: SECRET_KEY environment variable not set. Refusing to start.')
+app.secret_key = _secret
+
+_db_url = os.environ.get('DB_URL')
+if not _db_url:
+    raise RuntimeError('FATAL: DB_URL environment variable not set. Refusing to start.')
+app.config['SQLALCHEMY_DATABASE_URI'] = _db_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['SESSION_COOKIE_HTTPONLY'] = True
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+app.config['SESSION_COOKIE_SECURE'] = os.environ.get('FLASK_ENV') != 'development'
+
+limiter = Limiter(app=app, key_func=get_remote_address, default_limits=[], storage_uri='memory://')
 
 db.init_app(app)
 
 def hash_pw(pw):
-    return hashlib.sha256(pw.encode()).hexdigest()
+    """Hash a password using bcrypt."""
+    return bcrypt.hashpw(pw.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+
+def verify_pw(plain, stored_hash):
+    """Verify password, supports bcrypt and legacy SHA-256."""
+    try:
+        if bcrypt.checkpw(plain.encode('utf-8'), stored_hash.encode('utf-8')):
+            return True
+    except Exception:
+        pass
+    legacy = hashlib.sha256(plain.encode()).hexdigest()
+    if secrets.compare_digest(legacy, stored_hash):
+        return True, 'migrate'
+    return False
+
+@app.after_request
+def add_security_headers(resp):
+    resp.headers['X-Content-Type-Options'] = 'nosniff'
+    resp.headers['X-Frame-Options'] = 'DENY'
+    resp.headers['X-XSS-Protection'] = '1; mode=block'
+    resp.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+    resp.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
+    return resp
 
 # ── Rotas Web Básicas ──────────────────────────────────────────────────────
 @app.route('/login')
@@ -50,20 +88,30 @@ def usuarios_page():
 
 # ── API Auth ───────────────────────────────────────────────────────────────
 @app.route('/api/auth/login', methods=['POST'])
+@limiter.limit('10 per minute')
 def api_login():
     d = request.json or {}
     login = (d.get('login') or '').strip()
     senha = d.get('senha') or ''
-    if not login or not senha:
-        return jsonify({'ok': False, 'message': 'Preencha login e senha'}), 400
-    
-    user = SuperadminUsuario.query.filter_by(login=login, senha_hash=hash_pw(senha), ativo=True).first()
+    if not login or not senha or len(login) > 100:
+        return jsonify({'ok': False, 'message': 'Credenciais inválidas'}), 400
+
+    user = SuperadminUsuario.query.filter_by(login=login, ativo=True).first()
     if not user:
         return jsonify({'ok': False, 'message': 'Login ou senha incorretos'}), 401
-    
+
+    result = verify_pw(senha, user.senha_hash)
+    if not result:
+        return jsonify({'ok': False, 'message': 'Login ou senha incorretos'}), 401
+
+    if isinstance(result, tuple) and result[1] == 'migrate':
+        user.senha_hash = hash_pw(senha)
+        db.session.commit()
+
+    session.clear()
     session['superadmin_id'] = user.id
     session['superadmin_nome'] = user.nome
-    
+
     return jsonify({'ok': True, 'nome': user.nome})
 
 @app.route('/api/auth/logout', methods=['POST'])
