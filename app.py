@@ -79,9 +79,13 @@ class PostgresWrapper:
 
 def get_db():
     if 'db' not in g:
-        raw_db = psycopg2.connect(DB_URL, cursor_factory=DictCursor)
-        raw_db.autocommit = False
-        g.db = PostgresWrapper(raw_db)
+        try:
+            raw_db = psycopg2.connect(DB_URL, cursor_factory=DictCursor, connect_timeout=5)
+            raw_db.autocommit = False
+            g.db = PostgresWrapper(raw_db)
+        except Exception as e:
+            print(f"!!! CRITICAL: Database connection failed: {e}")
+            raise e
     return g.db
 
 @app.teardown_appcontext
@@ -316,6 +320,11 @@ def add_security_headers(resp):
 @app.errorhandler(Exception)
 def handle_exception(e):
     """Global error handler to return JSON instead of HTML on error."""
+    # Se for um erro HTTP padrão (404, 403, 401), deixa o Flask tratar normalmente
+    from werkzeug.exceptions import HTTPException
+    if isinstance(e, HTTPException):
+        return e
+
     tb = traceback.format_exc()
     print(f"!!! Error detected:\n{tb}")
     return jsonify({
