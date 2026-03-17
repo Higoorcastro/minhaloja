@@ -448,7 +448,7 @@ def api_login():
     db = get_db()
 
     user = db.execute(
-        "SELECT * FROM tenant_usuarios WHERE login=? AND ativo=True",
+        "SELECT * FROM tenant_usuarios WHERE login=? AND ativo=1",
         (login,)).fetchone()
 
     if not user:
@@ -539,7 +539,7 @@ def api_plano_info():
                COUNT(tu.id) as total_usuarios
         FROM tenants t
         JOIN planos p ON p.id = t.plano_id
-        LEFT JOIN tenant_usuarios tu ON tu.tenant_id = t.id AND tu.ativo = True
+        LEFT JOIN tenant_usuarios tu ON tu.tenant_id = t.id AND tu.ativo = 1
         WHERE t.id = ?
         GROUP BY p.max_usuarios, p.modulos
     """, (tid,)).fetchone()
@@ -577,7 +577,7 @@ def _get_plano_info(db, tid):
                COUNT(tu.id) as total_usuarios
         FROM tenants t
         JOIN planos p ON p.id = t.plano_id
-        LEFT JOIN tenant_usuarios tu ON tu.tenant_id = t.id AND tu.ativo = True
+        LEFT JOIN tenant_usuarios tu ON tu.tenant_id = t.id AND tu.ativo = 1
         WHERE t.id = ?
         GROUP BY p.max_usuarios, p.modulos
     """, (tid,)).fetchone()
@@ -634,7 +634,7 @@ def api_usuario_update(uid):
     d = request.json or {}
     tid = session['tenant_id']
 
-    admins = db.execute("SELECT COUNT(*) as c FROM tenant_usuarios WHERE tenant_id=? AND papel='admin' AND ativo=True", (tid,)).fetchone()['c']
+    admins = db.execute("SELECT COUNT(*) as c FROM tenant_usuarios WHERE tenant_id=? AND papel='admin' AND ativo=1", (tid,)).fetchone()['c']
     target = db.execute("SELECT papel FROM tenant_usuarios WHERE tenant_id=? AND id=?", (tid, uid)).fetchone()
     if not target:
         return jsonify({'ok': False, 'message': 'Usuário não encontrado'}), 404
@@ -647,7 +647,7 @@ def api_usuario_update(uid):
     perms_str = _validar_permissoes(d.get('permissoes', []), modulos_plano, papel)
 
     db.execute("UPDATE tenant_usuarios SET nome=?,login=?,papel=?,ativo=?,permissoes=? WHERE tenant_id=? AND id=?",
-               (d['nome'], d['login'], papel, ativo, perms_str, tid, uid))
+               (d['nome'], d['login'], papel, 1 if ativo else 0, perms_str, tid, uid))
 
     if d.get('senha'):
         if len(d['senha']) < 8:
@@ -672,7 +672,7 @@ def api_usuario_delete(uid):
         return jsonify({'ok': False, 'message': 'Não pode excluir o próprio usuário'}), 400
     db = get_db()
     tid = session['tenant_id']
-    admins = db.execute("SELECT COUNT(*) as c FROM tenant_usuarios WHERE tenant_id=? AND papel='admin' AND ativo=True", (tid,)).fetchone()['c']
+    admins = db.execute("SELECT COUNT(*) as c FROM tenant_usuarios WHERE tenant_id=? AND papel='admin' AND ativo=1", (tid,)).fetchone()['c']
     target = db.execute("SELECT papel FROM tenant_usuarios WHERE tenant_id=? AND id=?", (tid, uid)).fetchone()
     if target and target['papel'] == 'admin' and admins <= 1:
         return jsonify({'ok': False, 'message': 'Não é possível remover o último administrador da loja'}), 400
@@ -969,7 +969,7 @@ def api_compra_create():
 @require_auth
 def api_vendedores_list():
     db=get_db(); tid=session['tenant_id']
-    return jsonify(rows_to_list(db.execute("SELECT * FROM vendedores WHERE tenant_id=? AND ativo=True ORDER BY nome", (tid,)).fetchall()))
+    return jsonify(rows_to_list(db.execute("SELECT * FROM vendedores WHERE tenant_id=? AND ativo=1 ORDER BY nome", (tid,)).fetchall()))
 
 @app.route('/api/vendedores', methods=['POST'])
 @require_auth
@@ -986,7 +986,7 @@ def api_vendedor_update(vid):
     db=get_db(); d=request.json; tid=session['tenant_id']
     ativo_val = bool(int(d.get('ativo', 1)))
     db.execute("UPDATE vendedores SET nome=?, ativo=? WHERE tenant_id=? AND id=?",
-               (d['nome'], ativo_val, tid, vid))
+               (d['nome'], 1 if ativo_val else 0, tid, vid))
     db.commit(); return jsonify({'ok':True})
 
 @app.route('/api/vendedores/<int:vid>', methods=['DELETE'])
@@ -994,7 +994,7 @@ def api_vendedor_update(vid):
 @require_module('settings')
 def api_vendedor_delete(vid):
     db=get_db(); tid=session['tenant_id']
-    db.execute("UPDATE vendedores SET ativo=False WHERE tenant_id=? AND id=?", (tid, vid))
+    db.execute("UPDATE vendedores SET ativo=0 WHERE tenant_id=? AND id=?", (tid, vid))
     db.commit(); return jsonify({'ok':True})
 
 # ══════════════════════════════════════════════════════════════════════════
