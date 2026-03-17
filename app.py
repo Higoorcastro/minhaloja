@@ -448,7 +448,7 @@ def api_login():
     db = get_db()
 
     user = db.execute(
-        "SELECT * FROM tenant_usuarios WHERE login=? AND ativo=1",
+        "SELECT * FROM tenant_usuarios WHERE login=? AND ativo=True",
         (login,)).fetchone()
 
     if not user:
@@ -539,7 +539,7 @@ def api_plano_info():
                COUNT(tu.id) as total_usuarios
         FROM tenants t
         JOIN planos p ON p.id = t.plano_id
-        LEFT JOIN tenant_usuarios tu ON tu.tenant_id = t.id AND tu.ativo = 1
+        LEFT JOIN tenant_usuarios tu ON tu.tenant_id = t.id AND tu.ativo = True
         WHERE t.id = ?
         GROUP BY p.max_usuarios, p.modulos
     """, (tid,)).fetchone()
@@ -577,7 +577,7 @@ def _get_plano_info(db, tid):
                COUNT(tu.id) as total_usuarios
         FROM tenants t
         JOIN planos p ON p.id = t.plano_id
-        LEFT JOIN tenant_usuarios tu ON tu.tenant_id = t.id AND tu.ativo = 1
+        LEFT JOIN tenant_usuarios tu ON tu.tenant_id = t.id AND tu.ativo = True
         WHERE t.id = ?
         GROUP BY p.max_usuarios, p.modulos
     """, (tid,)).fetchone()
@@ -620,7 +620,7 @@ def api_usuario_create():
     perms_str = _validar_permissoes(d.get('permissoes', []), modulos_plano, papel)
 
     cur = db.execute(
-        "INSERT INTO tenant_usuarios (tenant_id,nome,login,senha_hash,papel,ativo,permissoes) VALUES(?,?,?,?,?,1,?) RETURNING id",
+        "INSERT INTO tenant_usuarios (tenant_id,nome,login,senha_hash,papel,ativo,permissoes) VALUES(?,?,?,?,?,True,?) RETURNING id",
         (tid, nome, login, hash_pw(d['senha']), papel, perms_str))
     uid = cur.fetchone()['id']
     db.commit()
@@ -634,7 +634,7 @@ def api_usuario_update(uid):
     d = request.json or {}
     tid = session['tenant_id']
 
-    admins = db.execute("SELECT COUNT(*) as c FROM tenant_usuarios WHERE tenant_id=? AND papel='admin' AND ativo=1", (tid,)).fetchone()['c']
+    admins = db.execute("SELECT COUNT(*) as c FROM tenant_usuarios WHERE tenant_id=? AND papel='admin' AND ativo=True", (tid,)).fetchone()['c']
     target = db.execute("SELECT papel FROM tenant_usuarios WHERE tenant_id=? AND id=?", (tid, uid)).fetchone()
     if not target:
         return jsonify({'ok': False, 'message': 'Usuário não encontrado'}), 404
@@ -647,7 +647,7 @@ def api_usuario_update(uid):
     perms_str = _validar_permissoes(d.get('permissoes', []), modulos_plano, papel)
 
     db.execute("UPDATE tenant_usuarios SET nome=?,login=?,papel=?,ativo=?,permissoes=? WHERE tenant_id=? AND id=?",
-               (d['nome'], d['login'], papel, 1 if ativo else 0, perms_str, tid, uid))
+               (d['nome'], d['login'], papel, ativo, perms_str, tid, uid))
 
     if d.get('senha'):
         if len(d['senha']) < 8:
@@ -672,11 +672,11 @@ def api_usuario_delete(uid):
         return jsonify({'ok': False, 'message': 'Não pode excluir o próprio usuário'}), 400
     db = get_db()
     tid = session['tenant_id']
-    admins = db.execute("SELECT COUNT(*) as c FROM tenant_usuarios WHERE tenant_id=? AND papel='admin' AND ativo=1", (tid,)).fetchone()['c']
+    admins = db.execute("SELECT COUNT(*) as c FROM tenant_usuarios WHERE tenant_id=? AND papel='admin' AND ativo=True", (tid,)).fetchone()['c']
     target = db.execute("SELECT papel FROM tenant_usuarios WHERE tenant_id=? AND id=?", (tid, uid)).fetchone()
     if target and target['papel'] == 'admin' and admins <= 1:
         return jsonify({'ok': False, 'message': 'Não é possível remover o último administrador da loja'}), 400
-    db.execute("UPDATE tenant_usuarios SET ativo=0, login=login || '_del_' || id::text WHERE tenant_id=? AND id=?", (tid, uid))
+    db.execute("UPDATE tenant_usuarios SET ativo=False, login=login || '_del_' || id::text WHERE tenant_id=? AND id=?", (tid, uid))
     db.commit()
     return jsonify({'ok': True})
 
@@ -1199,10 +1199,8 @@ def rel_estoque():
 # Rodamos uma tentativa de inicialização no topo; se o banco estiver indisponível
 # ou demorar, o app apenas loga o aviso e continua para não travar o worker boot.
 # ══════════════════════════════════════════════════════════════════════════
-try:
-    init_db()
-except Exception as e:
-    print(f"!!! Warning: Async init_db failed on startup: {e}")
+# init_db() removido do top-level para evitar travar o boot do Gunicorn (causa de 504).
+# O banco deve ser inicializado manualmente via 'python app.py init' se necessrio.
 
 if __name__ == '__main__':
     if len(sys.argv) > 1 and sys.argv[1] == 'init':

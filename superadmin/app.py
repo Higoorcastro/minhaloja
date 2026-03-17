@@ -428,10 +428,8 @@ def init_db():
             db.session.commit()
 
 # Inicialização opcional; se falhar (ex: DB não pronto), o Gunicorn prossegue.
-try:
-    init_db()
-except Exception as e:
-    print(f"!!! Superadmin init_db warning: {e}")
+# init_db() removido do top-level para evitar 504 Gateway Timeout.
+# Inicialize manualmente via CLI se necessrio ou via dev server.
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5679))
