@@ -26,7 +26,7 @@
             <thead>
                 <tr class="bg-slate-50 text-slate-500 text-xs uppercase tracking-wider">
                     <th class="px-6 py-4 font-semibold">Usuário</th>
-                    <th class="px-6 py-4 font-semibold">Login do Sistema</th>
+                    <th class="px-6 py-4 font-semibold">E-mail de Acesso</th>
                     <th class="px-6 py-4 font-semibold">Papel</th>
                     <th class="px-6 py-4 font-semibold">Status Acesso</th>
                     <th class="px-6 py-4 font-semibold text-right">Ações</th>
@@ -64,8 +64,8 @@
             
             <div class="grid grid-cols-2 gap-4">
                 <div>
-                    <label class="block text-sm font-medium text-slate-700 mb-1" for="login">Login In-App</label>
-                    <input type="text" id="login" required autocomplete="off" class="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500/50 outline-none text-sm font-mono">
+                    <label class="block text-sm font-medium text-slate-700 mb-1" for="login">E-mail de Acesso</label>
+                    <input type="email" id="login" required autocomplete="off" class="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500/50 outline-none text-sm" placeholder="usuario@exemplo.com">
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-slate-700 mb-1" for="senha">Senha <span id="senha-req" class="text-red-500 font-normal">*</span></label>
@@ -151,7 +151,7 @@
                         ${u.nome}
                     </div>
                 </td>
-                <td class="px-6 py-4"><span class="font-mono text-xs bg-slate-100 px-2 py-1 rounded text-slate-600 border border-slate-200">${u.login}</span></td>
+                <td class="px-6 py-4"><span class="text-sm bg-slate-100 px-2 py-1 rounded text-slate-600 border border-slate-200">${u.login}</span></td>
                 <td class="px-6 py-4">
                     ${u.papel === 'admin' ? 
                         '<span class="text-xs font-semibold text-purple-700 bg-purple-50 px-2 py-1 rounded-md border border-purple-100">Administrador</span>' : 
@@ -164,9 +164,12 @@
                         '<span class="inline-flex items-center text-xs font-medium text-red-500"><i data-lucide="x-circle" class="w-4 h-4 mr-1"></i> Bloqueado</span>'
                     }
                 </td>
-                <td class="px-6 py-4 text-right">
-                    <button onclick='editar(${JSON.stringify(u).replace(/'/g, "&#39;")})' class="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors opacity-0 group-hover:opacity-100">
+                <td class="px-6 py-4 text-right flex justify-end gap-2">
+                    <button onclick='editar(${JSON.stringify(u).replace(/'/g, "&#39;")})' class="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors opacity-0 group-hover:opacity-100" title="Editar">
                         <i data-lucide="edit" class="w-4 h-4"></i>
+                    </button>
+                    <button onclick="excluirUsuario(${u.id}, '${u.nome}')" class="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors opacity-0 group-hover:opacity-100" title="Excluir">
+                        <i data-lucide="trash-2" class="w-4 h-4"></i>
                     </button>
                 </td>
             </tr>
@@ -254,6 +257,18 @@
             const dr = await res.json();
             alert(dr.message || 'Erro ao salvar');
         }
+    }
+    async function excluirUsuario(id, nome) {
+        if(!confirm(`Deseja realmente excluir permanentemente o acesso de "${nome}"?`)) return;
+        
+        try {
+            const res = await fetch(`/api/tenant_usuarios/${id}`, { method: 'DELETE' });
+            if(res.ok) {
+                carregarUsuarios();
+            } else {
+                alert('Erro ao excluir usuário');
+            }
+        } catch(e) { console.error(e); }
     }
 </script>
 {% endblock %}

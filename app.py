@@ -708,7 +708,7 @@ def api_usuario_delete(uid):
     target = db.execute("SELECT papel FROM tenant_usuarios WHERE tenant_id=? AND id=?", (tid, uid)).fetchone()
     if target and target['papel'] == 'admin' and admins <= 1:
         return jsonify({'ok': False, 'message': 'Não é possível remover o último administrador da loja'}), 400
-    db.execute("UPDATE tenant_usuarios SET ativo=False, login=login || '_del_' || id::text WHERE tenant_id=? AND id=?", (tid, uid))
+    db.execute("DELETE FROM tenant_usuarios WHERE tenant_id=? AND id=?", (tid, uid))
     db.commit()
     return jsonify({'ok': True})
 

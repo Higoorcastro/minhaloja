@@ -154,9 +154,12 @@
                         </span>
                     </td>
                     <td class="px-6 py-4 text-slate-500 text-sm">${t.criado_em}</td>
-                    <td class="px-6 py-4 text-right">
-                        <button onclick='editar(${JSON.stringify(t).replace(/'/g, "&#39;")})' class="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors opacity-0 group-hover:opacity-100">
+                    <td class="px-6 py-4 text-right flex justify-end gap-2">
+                        <button onclick='editar(${JSON.stringify(t).replace(/'/g, "&#39;")})' class="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors opacity-0 group-hover:opacity-100" title="Editar">
                             <i data-lucide="edit-2" class="w-4 h-4"></i>
+                        </button>
+                        <button onclick="excluirLoja(${t.id}, '${t.nome}')" class="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors opacity-0 group-hover:opacity-100" title="Excluir">
+                            <i data-lucide="trash-2" class="w-4 h-4"></i>
                         </button>
                     </td>
                 </tr>
@@ -233,6 +236,18 @@
         } else {
             alert('Erro ao salvar');
         }
+    }
+    async function excluirLoja(id, nome) {
+        if(!confirm(`⚠️ ATENÇÃO: Deseja realmente excluir a loja "${nome}"? \n\nIsso apagará TODOS os dados vinculados (usuários, vendas, produtos, etc) permanentemente!`)) return;
+        
+        try {
+            const res = await fetch(`/api/tenants/${id}`, { method: 'DELETE' });
+            if(res.ok) {
+                carregarDados();
+            } else {
+                alert('Erro ao excluir loja');
+            }
+        } catch(e) { console.error(e); }
     }
 </script>
 {% endblock %}

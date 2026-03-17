@@ -2329,7 +2329,7 @@
         </div>
         <div class="user-card-actions">
           <button class="btn btn-sm" onclick="editarUsuario(${u.id})">✏️ Editar</button>
-          ${!isSelf ? `<button class="btn btn-sm btn-danger" onclick="deletarUsuario(${u.id},'${u.nome}')">Del</button>` : ''}
+          ${!isSelf ? `<button class="btn btn-sm btn-danger" onclick="deletarUsuario(${u.id},'${u.nome}')" title="Excluir Usuário">🗑️ Excluir</button>` : ''}
         </div>
       </div>`;
       }).join('');
@@ -2442,10 +2442,10 @@
     }
 
     async function deletarUsuario(id, nome) {
-      if (!confirm(`Desativar o usuário "${nome}"?`)) return;
+      if (!confirm(`⚠️ ATENÇÃO: Deseja realmente excluir permanentemente o acesso de "${nome}"?`)) return;
       const r = await api(`/api/usuarios/${id}`, 'DELETE');
-      if (r?.ok) { notify('Usuário desativado', 'info'); loadUsuarios(); }
-      else notify(r?.message || 'Erro', 'error');
+      if (r?.ok) { notify('Usuário excluído permanentemente', 'warning'); loadUsuarios(); }
+      else notify(r?.message || 'Erro ao excluir', 'error');
     }
 
     // ══════════════════════════════════════════════════════════════

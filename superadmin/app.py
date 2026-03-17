@@ -311,12 +311,17 @@ def api_tenant_create():
     db.session.commit()
     return jsonify({'ok': True, 'id': novo.id})
 
-@app.route('/api/tenants/<int:tid>', methods=['PUT'])
+@app.route('/api/tenants/<int:tid>', methods=['PUT', 'DELETE'])
 @require_superadmin
 def api_tenant_update(tid):
     t = Tenant.query.get(tid)
     if not t:
         return jsonify({'ok': False, 'message': 'Tenant não encontrado'}), 404
+        
+    if request.method == 'DELETE':
+        db.session.delete(t)
+        db.session.commit()
+        return jsonify({'ok': True})
         
     d = request.json or {}
     t.nome = d.get('nome', t.nome)
@@ -393,7 +398,7 @@ def api_tenant_user_update(uid):
     u = TenantUsuario.query.get_or_404(uid)
     
     if request.method == 'DELETE':
-        u.ativo = False
+        db.session.delete(u)
         db.session.commit()
         return jsonify({'ok': True})
         
