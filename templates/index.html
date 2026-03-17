@@ -1405,6 +1405,174 @@
       background: var(--border2)
     }
 
+    /* ── ANIMATION SYSTEM ──────────────────────────────────────── */
+
+    /* Page transition: fade + slight upward slide */
+    @keyframes pageEnter {
+      from { opacity: 0; transform: translateY(10px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes pageExit {
+      from { opacity: 1; transform: translateY(0); }
+      to   { opacity: 0; transform: translateY(-6px); }
+    }
+
+    #content.page-entering {
+      animation: pageEnter 0.28s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+    }
+    #content.page-exiting {
+      animation: pageExit 0.16s cubic-bezier(0.4, 0, 1, 1) forwards;
+      pointer-events: none;
+    }
+
+    /* Staggered card entrance */
+    @keyframes cardIn {
+      from { opacity: 0; transform: translateY(14px) scale(0.97); }
+      to   { opacity: 1; transform: translateY(0) scale(1); }
+    }
+    .card {
+      animation: cardIn 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
+    }
+    .stat-card {
+      animation: cardIn 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
+    }
+    .stat-card:nth-child(1) { animation-delay: 0.04s; }
+    .stat-card:nth-child(2) { animation-delay: 0.08s; }
+    .stat-card:nth-child(3) { animation-delay: 0.12s; }
+    .stat-card:nth-child(4) { animation-delay: 0.16s; }
+    .stat-card:nth-child(5) { animation-delay: 0.20s; }
+    .stat-card:nth-child(6) { animation-delay: 0.24s; }
+
+    /* Button micro-animations */
+    .btn {
+      transition: transform 0.12s cubic-bezier(0.34, 1.56, 0.64, 1),
+                  box-shadow 0.15s ease,
+                  background 0.15s ease,
+                  border-color 0.15s ease,
+                  opacity 0.15s ease;
+      will-change: transform;
+    }
+    .btn:hover:not(:disabled) {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    }
+    .btn:active:not(:disabled) {
+      transform: translateY(0) scale(0.97);
+      box-shadow: none;
+    }
+    .btn-primary:hover:not(:disabled) {
+      box-shadow: 0 4px 16px rgba(31, 111, 235, 0.4);
+    }
+    .btn-success:hover:not(:disabled) {
+      box-shadow: 0 4px 16px rgba(63, 185, 80, 0.35);
+    }
+    .btn-danger:hover:not(:disabled) {
+      box-shadow: 0 4px 16px rgba(248, 81, 73, 0.35);
+    }
+
+    /* Nav item enhanced hover and active */
+    .nav-item {
+      transition: background 0.18s ease,
+                  color 0.18s ease,
+                  transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1),
+                  box-shadow 0.2s ease;
+      position: relative;
+    }
+    .nav-item:hover {
+      transform: translateX(2px);
+    }
+    .nav-item.active {
+      background: rgba(88, 166, 255, .14);
+      color: var(--blue);
+      box-shadow: inset 3px 0 0 var(--blue), 0 0 20px rgba(88, 166, 255, 0.06);
+    }
+
+    /* Icon button feedback */
+    .icon-btn {
+      transition: all 0.15s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    .icon-btn:hover {
+      transform: scale(1.12);
+    }
+    .icon-btn:active {
+      transform: scale(0.92);
+    }
+
+    /* Loading shimmer skeleton */
+    @keyframes shimmer {
+      0%   { background-position: -600px 0; }
+      100% { background-position: 600px 0; }
+    }
+    .skeleton {
+      background: linear-gradient(
+        90deg,
+        var(--bg3) 25%,
+        var(--bg4) 50%,
+        var(--bg3) 75%
+      );
+      background-size: 1200px 100%;
+      animation: shimmer 1.4s ease-in-out infinite;
+      border-radius: 6px;
+    }
+
+    /* Progress bar at top during navigation */
+    #nav-progress {
+      position: fixed;
+      top: 0;
+      left: 0;
+      height: 2px;
+      background: linear-gradient(90deg, var(--accent), var(--blue));
+      z-index: 9999;
+      transition: width 0.25s ease, opacity 0.3s ease;
+      opacity: 0;
+      width: 0;
+      box-shadow: 0 0 8px rgba(88, 166, 255, 0.6);
+    }
+    #nav-progress.active {
+      opacity: 1;
+    }
+
+    /* Stat card enhanced hover */
+    .stat-card {
+      transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1),
+                  box-shadow 0.2s ease;
+    }
+    .stat-card:hover {
+      transform: translateY(-3px);
+      box-shadow: var(--card-shadow), 0 12px 40px rgba(0,0,0,0.3);
+    }
+
+    /* Table row smooth hover */
+    tbody tr {
+      transition: background 0.12s ease;
+    }
+
+    /* Modal entrance animation */
+    @keyframes modalIn {
+      from { opacity: 0; transform: scale(0.95) translateY(10px); }
+      to   { opacity: 1; transform: scale(1) translateY(0); }
+    }
+    .modal {
+      animation: modalIn 0.25s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+    }
+
+    /* Notification entrance */
+    @keyframes notifIn {
+      from { opacity: 0; transform: translateX(30px); }
+      to   { opacity: 1; transform: translateX(0); }
+    }
+    .notif-item {
+      animation: notifIn 0.28s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+    }
+
+    /* prefers-reduced-motion: disable all animations */
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        transition-duration: 0.01ms !important;
+      }
+    }
+
     .mono {
       font-family: 'JetBrains Mono', monospace
     }
@@ -1665,6 +1833,7 @@
 </head>
 
 <body>
+  <div id="nav-progress"></div>
   <div id="app">
     <!-- SIDEBAR -->
     <div id="sidebar">
@@ -1998,15 +2167,37 @@
     }
 
     // ── Navigate ───────────────────────────────────────────────────
-    function navigate(page) {
-      // Check permission
+    let _navigating = false;
+    const _renderMap = {}; // filled after render functions are defined
+
+    function _showProgress(pct) {
+      const bar = document.getElementById('nav-progress');
+      if (!bar) return;
+      bar.classList.add('active');
+      bar.style.width = pct + '%';
+    }
+    function _hideProgress() {
+      const bar = document.getElementById('nav-progress');
+      if (!bar) return;
+      bar.style.width = '100%';
+      setTimeout(() => { bar.style.opacity = '0'; setTimeout(() => { bar.style.width = '0'; bar.classList.remove('active'); }, 300); }, 150);
+    }
+
+    async function navigate(page) {
+      // Permission check
       if (currentUser && currentUser.papel !== 'admin' && !currentUser.permissions.includes(page)) {
         notify('Sem permissão para acessar este módulo', 'error'); return;
       }
+      if (_navigating) return;
+      _navigating = true;
+
+      // Update nav active state
       currentPage = page;
       document.querySelectorAll('.nav-item').forEach(el => {
         el.classList.toggle('active', el.dataset.page === page);
       });
+
+      // Page title
       const titles = {
         dashboard: 'Dashboard', pdv: 'Ponto de Venda', vendas: 'Vendas', os: 'Ordens de Serviço',
         produtos: 'Produtos', clientes: 'Clientes', financeiro: 'Financeiro', receber: 'A Receber',
@@ -2014,11 +2205,33 @@
       };
       document.getElementById('page-title').textContent = titles[page] || page;
       document.getElementById('topbar-actions').innerHTML = '';
-      ({
+
+      // ── Transition: exit current content ──────────────────────────
+      const content = document.getElementById('content');
+      _showProgress(30);
+
+      content.classList.add('page-exiting');
+      await new Promise(r => setTimeout(r, 160));
+      content.classList.remove('page-exiting');
+
+      _showProgress(65);
+
+      // ── Render new module ──────────────────────────────────────────
+      const renderer = {
         dashboard: renderDashboard, pdv: renderPDV, vendas: renderVendas, os: renderOS,
         produtos: renderProdutos, clientes: renderClientes, financeiro: renderFinanceiro, receber: renderFinanceiro,
         relatorios: renderRelatorios, usuarios: renderUsuarios, settings: renderSettings
-      })[page]?.();
+      }[page];
+
+      if (renderer) await renderer();
+
+      // ── Transition: enter new content ──────────────────────────────
+      content.classList.add('page-entering');
+      content.addEventListener('animationend', () => content.classList.remove('page-entering'), { once: true });
+
+      _showProgress(100);
+      _hideProgress();
+      _navigating = false;
     }
 
     // ══════════════════════════════════════════════════════════════
