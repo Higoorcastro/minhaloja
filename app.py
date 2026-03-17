@@ -969,7 +969,7 @@ def api_compra_create():
 @require_auth
 def api_vendedores_list():
     db=get_db(); tid=session['tenant_id']
-    return jsonify(rows_to_list(db.execute("SELECT * FROM vendedores WHERE tenant_id=? AND ativo=1 ORDER BY nome", (tid,)).fetchall()))
+    return jsonify(rows_to_list(db.execute("SELECT * FROM vendedores WHERE tenant_id=? AND ativo=True ORDER BY nome", (tid,)).fetchall()))
 
 @app.route('/api/vendedores', methods=['POST'])
 @require_auth
@@ -984,8 +984,9 @@ def api_vendedor_create():
 @require_module('settings')
 def api_vendedor_update(vid):
     db=get_db(); d=request.json; tid=session['tenant_id']
+    ativo_val = bool(int(d.get('ativo', 1)))
     db.execute("UPDATE vendedores SET nome=?, ativo=? WHERE tenant_id=? AND id=?",
-               (d['nome'], d.get('ativo', 1), tid, vid))
+               (d['nome'], ativo_val, tid, vid))
     db.commit(); return jsonify({'ok':True})
 
 @app.route('/api/vendedores/<int:vid>', methods=['DELETE'])
@@ -993,7 +994,7 @@ def api_vendedor_update(vid):
 @require_module('settings')
 def api_vendedor_delete(vid):
     db=get_db(); tid=session['tenant_id']
-    db.execute("UPDATE vendedores SET ativo=0 WHERE tenant_id=? AND id=?", (tid, vid))
+    db.execute("UPDATE vendedores SET ativo=False WHERE tenant_id=? AND id=?", (tid, vid))
     db.commit(); return jsonify({'ok':True})
 
 # ══════════════════════════════════════════════════════════════════════════

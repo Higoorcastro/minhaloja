@@ -62,7 +62,7 @@ def handle_exception(e):
     return jsonify({
         'ok': False,
         'error': str(e),
-        'traceback': tb if os.getenv('FLASK_ENV') == 'development' or True else None
+        'traceback': tb if os.getenv('FLASK_ENV') == 'development' else None
     }), 500
 
 @app.after_request
@@ -71,6 +71,15 @@ def add_security_headers(resp):
     resp.headers['X-Frame-Options'] = 'DENY'
     resp.headers['X-XSS-Protection'] = '1; mode=block'
     resp.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+    resp.headers['Permissions-Policy'] = 'geolocation=(), microphone=(), camera=()'
+    resp.headers['Content-Security-Policy'] = (
+        "default-src 'self'; "
+        "script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://unpkg.com; "
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+        "font-src 'self' https://fonts.gstatic.com; "
+        "img-src 'self' data: blob:; "
+        "connect-src 'self';"
+    )
     return resp
 
 # ── Rotas Web Básicas ──────────────────────────────────────────────────────
