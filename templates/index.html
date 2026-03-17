@@ -2337,8 +2337,8 @@
 
     function buildPermGrid(papel, permissoesSelecionadas = []) {
       const isAdmin = papel === 'admin';
-      // Usa apenas os módulos liberados pelo plano no servidor
-      const planoModulos = window._planoInfo?.modulos || ['dashboard', 'pdv', 'vendas', 'os', 'produtos', 'clientes', 'financeiro', 'relatorios', 'usuarios', 'settings'];
+      // Exibe todos os módulos do sistema
+      const planoModulos = Object.keys(ALL_MODULE_LABELS);
       return `
     <div class="section-title" style="margin-top:4px">Permissões por Módulo</div>
     ${isAdmin ? `<div style="font-size:12px;color:var(--green);margin-bottom:8px">✅ Administrador tem acesso total a todos os módulos automaticamente.</div>` : ''}

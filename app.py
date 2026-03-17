@@ -54,7 +54,7 @@ limiter = Limiter(
 )
 
 ALL_MODULES = ['dashboard','pdv','vendas','os','produtos',
-               'clientes','financeiro','relatorios','usuarios', 'settings']
+               'clientes','financeiro','receber','relatorios','usuarios', 'settings']
 
 
 # ── Database ───────────────────────────────────────────────────────────────
@@ -607,10 +607,10 @@ def _get_plano_info(db, tid):
     return row['max_usuarios'], modulos, row['total_usuarios']
 
 def _validar_permissoes(perms_enviadas, modulos_plano, papel):
-    """Filtra permissões enviadas pelo frontend para apenas as do plano. Admin não precisa."""
+    """Filtra permissões enviadas pelo frontend para apenas os módulos válidos do sistema. Admin não precisa."""
     if papel == 'admin':
         return ''
-    validas = [p for p in perms_enviadas if p in modulos_plano]
+    validas = [p for p in perms_enviadas if p in ALL_MODULES]
     return ','.join(validas)
 
 @app.route('/api/usuarios', methods=['POST'])
