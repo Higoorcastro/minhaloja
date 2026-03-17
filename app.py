@@ -54,7 +54,7 @@ limiter = Limiter(
 )
 
 ALL_MODULES = ['dashboard','pdv','vendas','os','produtos',
-               'clientes','financeiro','receber','relatorios','usuarios', 'settings']
+               'clientes','financeiro','receber','relatorios','settings']
 
 
 # ── Database ───────────────────────────────────────────────────────────────
@@ -578,7 +578,7 @@ def api_plano_info():
 # ══════════════════════════════════════════════════════════════════════════
 @app.route('/api/usuarios', methods=['GET'])
 @require_auth
-@require_module('usuarios')
+@require_module('settings')
 def api_usuarios_list():
     db = get_db()
     tid = session.get('tenant_id')
@@ -615,7 +615,7 @@ def _validar_permissoes(perms_enviadas, modulos_plano, papel):
 
 @app.route('/api/usuarios', methods=['POST'])
 @require_auth
-@require_module('usuarios')
+@require_module('settings')
 def api_usuario_create():
     db = get_db()
     d = request.json or {}
@@ -652,7 +652,7 @@ def api_usuario_create():
 
 @app.route('/api/usuarios/<int:uid>', methods=['PUT'])
 @require_auth
-@require_module('usuarios')
+@require_module('settings')
 def api_usuario_update(uid):
     db = get_db()
     d = request.json or {}
@@ -699,7 +699,7 @@ def api_usuario_update(uid):
 
 @app.route('/api/usuarios/<int:uid>', methods=['DELETE'])
 @require_auth
-@require_module('usuarios')
+@require_module('settings')
 def api_usuario_delete(uid):
     if uid == session['user_id']:
         return jsonify({'ok': False, 'message': 'Não pode excluir o próprio usuário'}), 400

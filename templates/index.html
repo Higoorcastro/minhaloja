@@ -2000,12 +2000,12 @@
     const ALL_MODULE_LABELS = {
       dashboard: 'Dashboard', pdv: 'Ponto de Venda', vendas: 'Vendas',
       os: 'Ordem de Serviço', produtos: 'Produtos', clientes: 'Clientes',
-      financeiro: 'Financeiro', receber: 'A Receber', relatorios: 'Relatórios', usuarios: 'Usuários',
+      financeiro: 'Financeiro', receber: 'A Receber', relatorios: 'Relatórios',
       settings: 'Configurações'
     };
     const ALL_MODULE_ICONS = {
       dashboard: '🏠', pdv: '🛒', vendas: '📋', os: '🔧', produtos: '📦',
-      clientes: '👥', financeiro: '💰', receber: '💳', relatorios: '📊', usuarios: '👤',
+      clientes: '👥', financeiro: '💰', receber: '💳', relatorios: '📊',
       settings: '⚙️'
     };
 
@@ -2093,8 +2093,9 @@
         document.getElementById('nav-section-gestao').style.display = '';
         document.getElementById('nav-settings').style.display = '';
         document.getElementById('nav-usuarios').style.display = '';
-      } else if (me.permissions.includes('usuarios')) {
+      } else if (me.permissions.includes('settings')) {
         document.getElementById('nav-section-gestao').style.display = '';
+        document.getElementById('nav-settings').style.display = '';
         document.getElementById('nav-usuarios').style.display = '';
       }
 
@@ -2108,8 +2109,11 @@
         document.querySelectorAll('.nav-item[data-page]').forEach(el => {
           const page = el.dataset.page;
           if (!me.permissions.includes(page)) {
-            // Special case: Financeiro hub also accessible via 'receber' permission
+            // Financeiro hub também acessível via permissão 'receber'
             if (page === 'financeiro' && me.permissions.includes('receber')) {
+              el.style.display = '';
+            // Usuários faz parte do módulo de configurações
+            } else if (page === 'usuarios' && me.permissions.includes('settings')) {
               el.style.display = '';
             } else {
               el.style.display = 'none';
