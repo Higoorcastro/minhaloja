@@ -949,6 +949,7 @@
       color: var(--text);
       display: -webkit-box;
       -webkit-line-clamp: 2;
+      line-clamp: 2;
       -webkit-box-orient: vertical;
       overflow: hidden;
       min-height: 34px;
@@ -1918,15 +1919,6 @@
 
         <div id="nav-section-gestao" style="display:none">
           <div class="nav-title">Gestão</div>
-          <div class="nav-item" onclick="navigate('usuarios')" data-page="usuarios" id="nav-usuarios">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
-              <circle cx="9" cy="7" r="4" />
-              <line x1="19" y1="8" x2="19" y2="14" />
-              <line x1="22" y1="11" x2="16" y2="11" />
-            </svg>
-            <span class="nav-label">Usuários</span>
-          </div>
           <div class="nav-item" onclick="navigate('settings')" data-page="settings" id="nav-settings">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <circle cx="12" cy="12" r="3" />
@@ -2089,14 +2081,9 @@
       document.getElementById('user-avatar-init').textContent = me.nome.charAt(0).toUpperCase();
 
       // Gestão section
-      if (me.papel === 'admin') {
+      if (me.papel === 'admin' || me.permissions.includes('settings')) {
         document.getElementById('nav-section-gestao').style.display = '';
         document.getElementById('nav-settings').style.display = '';
-        document.getElementById('nav-usuarios').style.display = '';
-      } else if (me.permissions.includes('settings')) {
-        document.getElementById('nav-section-gestao').style.display = '';
-        document.getElementById('nav-settings').style.display = '';
-        document.getElementById('nav-usuarios').style.display = '';
       }
 
       // Financeiro section
@@ -2111,9 +2098,6 @@
           if (!me.permissions.includes(page)) {
             // Financeiro hub também acessível via permissão 'receber'
             if (page === 'financeiro' && me.permissions.includes('receber')) {
-              el.style.display = '';
-            // Usuários faz parte do módulo de configurações
-            } else if (page === 'usuarios' && me.permissions.includes('settings')) {
               el.style.display = '';
             } else {
               el.style.display = 'none';
@@ -2224,7 +2208,9 @@
       const renderer = {
         dashboard: renderDashboard, pdv: renderPDV, vendas: renderVendas, os: renderOS,
         produtos: renderProdutos, clientes: renderClientes, financeiro: renderFinanceiro, receber: renderFinanceiro,
-        relatorios: renderRelatorios, usuarios: renderUsuarios, settings: renderSettings
+        relatorios: renderRelatorios,
+        usuarios: async () => { await renderSettings(); switchSettingsTab('usuarios'); },
+        settings: renderSettings
       }[page];
 
       if (renderer) await renderer();
@@ -3523,7 +3509,7 @@
     // SETTINGS (CONFIGURAÇÕES DA LOJA)
     // ══════════════════════════════════════════════════════════════
     async function renderSettings() {
-      if (currentUser.papel !== 'admin') {
+      if (currentUser.papel !== 'admin' && !currentUser.permissions?.includes('settings')) {
         notify('Acesso negado', 'error');
         navigate('dashboard');
         return;
@@ -3534,6 +3520,7 @@
             <div id="tab-geral" class="nav-item active" style="padding:10px 20px; cursor:pointer;" onclick="switchSettingsTab('geral')">Loja</div>
             <div id="tab-vendedores" class="nav-item" style="padding:10px 20px; cursor:pointer;" onclick="switchSettingsTab('vendedores')">Vendedores</div>
             <div id="tab-taxas" class="nav-item" style="padding:10px 20px; cursor:pointer;" onclick="switchSettingsTab('taxas')">Taxas de Pagamento</div>
+            <div id="tab-usuarios" class="nav-item" style="padding:10px 20px; cursor:pointer;" onclick="switchSettingsTab('usuarios')">Usuários</div>
           </div>
           
           <div id="settings-tab-geral">
@@ -3601,9 +3588,38 @@
               <button class="btn btn-primary" onclick="salvarTaxas()">💾 Salvar Taxas</button>
             </div>
           </div>
+
+          <div id="settings-tab-usuarios" style="display:none;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+              <div class="section-title" style="margin:0;">Gerenciamento de Usuários</div>
+              <div style="display:flex; gap:8px; align-items:center;">
+                <span id="users-limit-badge"></span>
+                <button class="btn btn-primary" id="btn-novo-usuario" onclick="novoUsuario()">+ Novo Usuário</button>
+              </div>
+            </div>
+            <div id="users-grid" class="users-grid">
+              <div class="empty"><div class="empty-icon">⏳</div><p>Carregando...</p></div>
+            </div>
+          </div>
         </div>
       `;
       loadVendedoresView();
+    }
+
+    async function loadUsuariosTab() {
+      const plano = await api('/api/plano/info') || { max_usuarios: 999, modulos: Object.keys(ALL_MODULE_LABELS), total_usuarios: 0 };
+      window._planoInfo = plano;
+      const restam = plano.max_usuarios - plano.total_usuarios;
+      const badge = document.getElementById('users-limit-badge');
+      if (badge && plano.max_usuarios < 999) {
+        badge.innerHTML = `<span class="badge ${restam <= 1 ? 'badge-red' : 'badge-blue'}" style="font-size:11px">${plano.total_usuarios}/${plano.max_usuarios} usuários</span>`;
+      }
+      const btn = document.getElementById('btn-novo-usuario');
+      if (btn && restam <= 0) {
+        btn.disabled = true;
+        btn.title = 'Limite de usuários atingido';
+      }
+      loadUsuarios();
     }
 
     async function fazerUploadLogo(input) {
@@ -3635,16 +3651,14 @@
     }
 
     function switchSettingsTab(tab) {
-      document.getElementById('tab-geral').classList.remove('active');
-      document.getElementById('tab-vendedores').classList.remove('active');
-      document.getElementById('tab-taxas').classList.remove('active');
-      document.getElementById('settings-tab-geral').style.display = 'none';
-      document.getElementById('settings-tab-vendedores').style.display = 'none';
-      document.getElementById('settings-tab-taxas').style.display = 'none';
-
+      ['geral', 'vendedores', 'taxas', 'usuarios'].forEach(t => {
+        document.getElementById('tab-' + t).classList.remove('active');
+        document.getElementById('settings-tab-' + t).style.display = 'none';
+      });
       document.getElementById('tab-' + tab).classList.add('active');
       document.getElementById('settings-tab-' + tab).style.display = 'block';
       if (tab === 'taxas') loadTaxasView();
+      if (tab === 'usuarios') loadUsuariosTab();
     }
 
     async function loadTaxasView() {
