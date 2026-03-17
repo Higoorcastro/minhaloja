@@ -36,7 +36,7 @@
 
 <!-- Modal Formulário -->
 <div id="modal-form" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 hidden items-center justify-center p-4 opacity-0 transition-opacity duration-300">
-    <div class="bg-white w-full max-w-lg rounded-2xl shadow-2xl scale-95 transition-transform duration-300 transform max-h-[90vh] flex flex-col" id="modal-content">
+    <div class="bg-white w-full max-w-lg rounded-2xl shadow-2xl scale-95 transition-transform duration-300 transform flex flex-col" id="modal-content" style="max-height: 90vh;">
         <div class="px-6 py-4 border-b border-slate-100 flex justify-between items-center">
             <h3 class="text-lg font-semibold text-slate-800" id="modal-title">Nova Loja</h3>
             <button onclick="fecharModal()" class="text-slate-400 hover:text-slate-600 transition-colors p-1 rounded-md hover:bg-slate-100">
@@ -44,7 +44,7 @@
             </button>
         </div>
         
-        <form id="form-loja" class="p-6 space-y-4 overflow-y-auto" onsubmit="event.preventDefault(); salvarLoja();">
+        <form id="form-loja" class="p-6 space-y-4" style="overflow-y: auto;" onsubmit="event.preventDefault(); salvarLoja();">
             <input type="hidden" id="loja_id">
             
             <div>
