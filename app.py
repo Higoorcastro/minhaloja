@@ -299,12 +299,13 @@ def init_db():
         
         # Migração: garante que o login seja único globalmente
         try:
-            # Remove a constraint antiga per-tenant se existir
-            cur.execute("ALTER TABLE tenant_usuarios DROP CONSTRAINT IF EXISTS _tenant_login_uc;")
-            # Garante que o índice/constraint global exista
-            cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_tenant_usuarios_login_global ON tenant_usuarios(login);")
+            # Reverte para constraint por tenant, que é mais seguro para multi-tenant
+            cur.execute("DROP INDEX IF EXISTS idx_tenant_usuarios_login_global;")
+            cur.execute("ALTER TABLE tenant_usuarios ADD CONSTRAINT tenant_usuarios_tenant_id_login_key UNIQUE (tenant_id, login);")
         except Exception as e:
-            print(f"⚠️ Aviso na migração de constraints: {e}")
+            # Se já existir a constraint, o psql dará erro, mas podemos ignorar se o objetivo for garantir que ela esteja lá
+            if 'already exists' not in str(e).lower():
+                print(f"⚠️ Aviso na migração de constraints: {e}")
         
         raw_db.commit()
         print("✅ Banco de dados inicializado com sucesso.")
@@ -326,10 +327,10 @@ def add_security_headers(resp):
     resp.headers['Permissions-Policy'] = 'geolocation=(), microphone=(), camera=()'
     resp.headers['Content-Security-Policy'] = (
         "default-src 'self'; "
-        "script-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
-        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://fonts.gstatic.com; "
-        "font-src 'self' https://fonts.gstatic.com; "
-        "img-src 'self' data: blob:; "
+        "script-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.tailwindcss.com https://unpkg.com; "
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://fonts.gstatic.com https://cdn.tailwindcss.com; "
+        "font-src 'self' data: https://fonts.gstatic.com; "
+        "img-src 'self' data: blob: *; "
         "connect-src 'self';"
     )
     return resp
@@ -462,8 +463,8 @@ def api_login():
         return jsonify({'ok': False, 'message': 'Credenciais inválidas'}), 400
     
     login = login.lower()
-    if '@' not in login or '.' not in login:
-        return jsonify({'ok': False, 'message': 'Digite um e-mail válido'}), 400
+    # Permitimos login por email ou por username simples (higor)
+    # Se contiver @ e ., tratamos como email, mas permitimos passar sem se o usuário já existir no banco.
     db = get_db()
 
     user = db.execute(
