@@ -307,6 +307,7 @@ def add_security_headers(resp):
     resp.headers['X-Frame-Options'] = 'DENY'
     resp.headers['X-XSS-Protection'] = '1; mode=block'
     resp.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+    resp.headers['Permissions-Policy'] = 'geolocation=(), microphone=(), camera=()'
     resp.headers['Content-Security-Policy'] = (
         "default-src 'self'; "
         "script-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
@@ -331,14 +332,19 @@ def handle_exception(e):
     return jsonify({
         'ok': False,
         'error': str(e),
-        'traceback': tb if os.getenv('FLASK_ENV') == 'development' or True else None # Force true for debugging VPS
+        'traceback': tb if os.getenv('FLASK_ENV') == 'development' else None
     }), 500
 
 # ── Helpers ────────────────────────────────────────────────────────────────
 def rows_to_list(rows):
     return [dict(r) for r in rows]
 
+# Allowed table names for next_number to prevent SQL injection
+_ALLOWED_SEQUENCE_TABLES = frozenset({'vendas', 'ordens_servico', 'compras'})
+
 def next_number(prefix, table, col):
+    if table not in _ALLOWED_SEQUENCE_TABLES:
+        raise ValueError(f'Invalid table name: {table}')
     db = get_db()
     tenant_id = session.get('tenant_id')
     n = (db.execute(f"SELECT COUNT(*) as c FROM {table} WHERE tenant_id=%s", (tenant_id,)).fetchone()['c'] or 0) + 1
