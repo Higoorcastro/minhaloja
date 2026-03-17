@@ -87,7 +87,10 @@
 
             <div class="pt-4 flex justify-end gap-3 border-t border-slate-100 mt-6">
                 <button type="button" onclick="fecharModal()" class="px-4 py-2 bg-white border border-slate-300 text-slate-700 font-medium rounded-lg hover:bg-slate-50 transition-colors text-sm">Cancelar</button>
-                <button type="submit" class="px-4 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-500 transition-colors shadow-md shadow-blue-500/30 text-sm">Salvar Loja</button>
+                <button type="submit" id="btn-salvar" class="flex items-center px-4 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-500 transition-colors shadow-md shadow-blue-500/30 text-sm disabled:opacity-50 disabled:cursor-not-allowed">
+                    <span id="btn-text">Salvar Loja</span>
+                    <div id="btn-loader" class="hidden ml-2 w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                </button>
             </div>
         </form>
     </div>
@@ -213,6 +216,10 @@
     }
 
     async function salvarLoja() {
+        const btn = document.getElementById('btn-salvar');
+        const loader = document.getElementById('btn-loader');
+        const text = document.getElementById('btn-text');
+        
         const id = document.getElementById('loja_id').value;
         const d = {
             nome: document.getElementById('nome').value,
@@ -226,15 +233,33 @@
         const url = id ? `/api/tenants/${id}` : '/api/tenants';
         const method = id ? 'PUT' : 'POST';
 
-        const res = await fetch(url, {
-            method, headers: {'Content-Type':'application/json'}, body: JSON.stringify(d)
-        });
+        try {
+            btn.disabled = true;
+            loader.classList.remove('hidden');
+            text.textContent = 'Salvando...';
 
-        if(res.ok) {
-            fecharModal();
-            carregarDados();
-        } else {
-            alert('Erro ao salvar');
+            const res = await fetch(url, {
+                method, 
+                headers: {'Content-Type':'application/json'}, 
+                body: JSON.stringify(d)
+            });
+
+            const result = await res.json();
+
+            if(res.ok && result.ok) {
+                showToast(id ? 'Loja atualizada com sucesso!' : 'Loja criada com sucesso!');
+                fecharModal();
+                await carregarDados();
+            } else {
+                showToast(result.message || 'Erro ao salvar loja', 'error');
+            }
+        } catch(e) { 
+            console.error(e);
+            showToast('Erro de conexão ou no servidor', 'error');
+        } finally {
+            btn.disabled = false;
+            loader.classList.add('hidden');
+            text.textContent = 'Salvar Loja';
         }
     }
     async function excluirLoja(id, nome) {

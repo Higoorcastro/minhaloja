@@ -171,9 +171,46 @@
         </div>
     </main>
 
+    <style>
+        /* ... existing styles ... */
+        .toast-enter { transform: translateY(0); opacity: 1; }
+        .toast-exit { transform: translateY(20px); opacity: 0; }
+    </style>
     <script>
         // Init Lucide Icons
         lucide.createIcons();
+
+        function showToast(message, type = 'success') {
+            const toast = document.createElement('div');
+            toast.className = `fixed bottom-6 right-6 px-6 py-3 rounded-2xl shadow-2xl z-[100] transform transition-all duration-500 ease-out translate-y-12 opacity-0 ${
+                type === 'success' ? 'bg-slate-900 border-l-4 border-emerald-500' : 'bg-slate-900 border-l-4 border-red-500'
+            } text-white flex items-center min-w-[300px]`;
+            
+            const icon = type === 'success' ? 'check-circle' : 'alert-circle';
+            const iconColor = type === 'success' ? 'text-emerald-400' : 'text-red-400';
+            
+            toast.innerHTML = `
+                <i data-lucide="${icon}" class="w-5 h-5 mr-3 ${iconColor}"></i>
+                <div class="flex-1">
+                    <p class="text-sm font-semibold">${type === 'success' ? 'Sucesso' : 'Erro'}</p>
+                    <p class="text-xs text-slate-400">${message}</p>
+                </div>
+            `;
+            
+            document.body.appendChild(toast);
+            lucide.createIcons();
+            
+            // Trigger animation
+            requestAnimationFrame(() => {
+                toast.classList.remove('translate-y-12', 'opacity-0');
+            });
+            
+            // Remove after time
+            setTimeout(() => {
+                toast.classList.add('translate-y-12', 'opacity-0');
+                setTimeout(() => toast.remove(), 500);
+            }, 4000);
+        }
 
         async function logout() {
             try {

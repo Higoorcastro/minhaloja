@@ -89,7 +89,10 @@
 
             <div class="pt-4 flex justify-end gap-3 border-t border-slate-100 mt-6">
                 <button type="button" onclick="fecharModal()" class="px-4 py-2 bg-white border border-slate-300 text-slate-700 font-medium rounded-lg hover:bg-slate-50 transition-colors text-sm">Cancelar</button>
-                <button type="submit" class="px-4 py-2 bg-slate-900 text-white font-medium rounded-lg hover:bg-slate-800 transition-colors shadow-sm text-sm">Salvar Registro</button>
+                <button type="submit" id="btn-salvar-usr" class="flex items-center px-4 py-2 bg-slate-900 text-white font-medium rounded-lg hover:bg-slate-800 transition-colors shadow-sm text-sm disabled:opacity-50 disabled:cursor-not-allowed">
+                    <span id="btn-text-usr">Salvar Registro</span>
+                    <div id="btn-loader-usr" class="hidden ml-2 w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                </button>
             </div>
         </form>
     </div>
@@ -229,6 +232,10 @@
     }
 
     async function salvarUsuario() {
+        const btn = document.getElementById('btn-salvar-usr');
+        const loader = document.getElementById('btn-loader-usr');
+        const text = document.getElementById('btn-text-usr');
+
         const id = document.getElementById('user_id').value;
         const tenant_id = document.getElementById('filtro-tenant').value;
         
@@ -246,16 +253,33 @@
         const url = id ? `/api/tenant_usuarios/${id}` : '/api/tenant_usuarios';
         const method = id ? 'PUT' : 'POST';
 
-        const res = await fetch(url, {
-            method, headers: {'Content-Type':'application/json'}, body: JSON.stringify(d)
-        });
+        try {
+            btn.disabled = true;
+            loader.classList.remove('hidden');
+            text.textContent = 'Salvando...';
 
-        if(res.ok) {
-            fecharModal();
-            carregarUsuarios();
-        } else {
-            const dr = await res.json();
-            alert(dr.message || 'Erro ao salvar');
+            const res = await fetch(url, {
+                method, 
+                headers: {'Content-Type':'application/json'}, 
+                body: JSON.stringify(d)
+            });
+
+            const result = await res.json();
+
+            if(res.ok && result.ok) {
+                showToast(id ? 'Acesso atualizado com sucesso!' : 'Novo acesso criado com sucesso!');
+                fecharModal();
+                await carregarUsuarios();
+            } else {
+                showToast(result.message || 'Erro ao salvar acesso', 'error');
+            }
+        } catch(e) {
+            console.error(e);
+            showToast('Erro de conexão ou no servidor', 'error');
+        } finally {
+            btn.disabled = false;
+            loader.classList.add('hidden');
+            text.textContent = 'Salvar Registro';
         }
     }
     async function excluirUsuario(id, nome) {
