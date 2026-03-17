@@ -1,4 +1,6 @@
 import os
+print("BOOT: Starting superadmin/app.py")
+import sys
 import hashlib
 import bcrypt
 import secrets
@@ -11,6 +13,7 @@ from dotenv import load_dotenv
 # Importando DB e Modelos
 from models import db, SuperadminUsuario, Plano, Tenant, TenantUsuario
 from auth import require_superadmin
+print("BOOT: Imports completed")
 
 # Carrega var de ambiente
 import traceback
@@ -34,6 +37,7 @@ app.config['SESSION_COOKIE_SECURE'] = False
 limiter = Limiter(app=app, key_func=get_remote_address, default_limits=[], storage_uri='memory://')
 
 db.init_app(app)
+print("BOOT: Database initialized")
 
 def hash_pw(pw):
     """Hash a password using bcrypt."""
@@ -108,23 +112,6 @@ def planos_page():
 @require_superadmin
 def usuarios_page():
     return render_template('sa_usuarios.html')
-
-# ── Helpers ───────────────────────────────────────────────────────────────
-def hash_pw(pw):
-    """Hash a password using bcrypt."""
-    return bcrypt.hashpw(pw.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
-
-def verify_pw(plain, stored_hash):
-    """Verify password, supports bcrypt and legacy SHA-256 (auto-migrates)."""
-    try:
-        if bcrypt.checkpw(plain.encode('utf-8'), stored_hash.encode('utf-8')):
-            return True
-    except Exception:
-        pass
-    legacy = hashlib.sha256(plain.encode()).hexdigest()
-    if secrets.compare_digest(legacy, stored_hash):
-        return True, 'migrate'
-    return False
 
 # ── API Auth ───────────────────────────────────────────────────────────────
 @app.route('/api/auth/login', methods=['POST'])
@@ -379,15 +366,19 @@ def api_tenant_user_create():
     d = request.json or {}
     if not d.get('tenant_id') or not d.get('nome') or not d.get('login') or not d.get('senha'):
         return jsonify({'ok': False, 'message': 'Faltam campos (tenant_id, nome, login, senha)'}), 400
-        
-    existe = TenantUsuario.query.filter_by(tenant_id=d['tenant_id'], login=d['login']).first()
+    
+    login = d['login'].strip().lower()
+    if '@' not in login or '.' not in login:
+        return jsonify({'ok': False, 'message': 'O login deve ser um e-mail válido'}), 400
+
+    existe = TenantUsuario.query.filter_by(login=login).first()
     if existe:
-        return jsonify({'ok': False, 'message': 'Login já existe nesta loja'}), 400
+        return jsonify({'ok': False, 'message': 'Este e-mail já está sendo usado por outro usuário'}), 400
         
     novo = TenantUsuario(
         tenant_id=d['tenant_id'],
         nome=d['nome'],
-        login=d['login'].strip(),
+        login=login,
         senha_hash=hash_pw(d['senha']),
         papel=d.get('papel', 'operador'),
         ativo=d.get('ativo', 1)
@@ -399,17 +390,26 @@ def api_tenant_user_create():
 @app.route('/api/tenant_usuarios/<int:uid>', methods=['PUT', 'DELETE'])
 @require_superadmin
 def api_tenant_user_update(uid):
-    u = TenantUsuario.query.get(uid)
-    if not u:
-        return jsonify({'ok': False, 'message': 'Usuário não encontrado'}), 404
-        
+    u = TenantUsuario.query.get_or_404(uid)
+    
     if request.method == 'DELETE':
         u.ativo = False
         db.session.commit()
         return jsonify({'ok': True})
         
     d = request.json or {}
-    u.nome = d.get('nome', u.nome)
+    
+    login = d.get('login', '').strip().lower()
+    if login:
+        if '@' not in login or '.' not in login:
+            return jsonify({'ok': False, 'message': 'O login deve ser um e-mail válido'}), 400
+            
+        existe = TenantUsuario.query.filter(TenantUsuario.login == login, TenantUsuario.id != uid).first()
+        if existe:
+            return jsonify({'ok': False, 'message': 'Este e-mail já está sendo usado por outro usuário'}), 400
+        u.login = login
+
+    if d.get('nome'): u.nome = d['nome']
     if d.get('senha'):
         u.senha_hash = hash_pw(d['senha'])
     u.papel = d.get('papel', u.papel)

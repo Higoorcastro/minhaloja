@@ -41,13 +41,13 @@ class TenantUsuario(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     tenant_id = db.Column(db.Integer, db.ForeignKey('tenants.id', ondelete='CASCADE'), nullable=False)
     nome = db.Column(db.String(255), nullable=False)
-    login = db.Column(db.String(100), nullable=False)
+    login = db.Column(db.String(100), nullable=False, unique=True)
     senha_hash = db.Column(db.String(255), nullable=False)
     papel = db.Column(db.String(50), default='operador') # admin, operador
     ativo = db.Column(db.Boolean, default=True)
     criado_em = db.Column(db.DateTime, default=datetime.utcnow)
     
-    __table_args__ = (db.UniqueConstraint('tenant_id', 'login', name='_tenant_login_uc'),)
+    # __table_args__ = (db.UniqueConstraint('tenant_id', 'login', name='_tenant_login_uc'),)
 
 class SuperadminUsuario(db.Model):
     __tablename__ = 'superadmin_usuarios'

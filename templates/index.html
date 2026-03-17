@@ -2322,7 +2322,7 @@
         <div class="user-card-info">
           <div class="user-card-name">${u.nome} ${isSelf ? '<span style="font-size:10px;color:var(--text3)">(você)</span>' : ''}</div>
           <div class="user-card-meta">
-            <span class="mono" style="color:var(--text3)">@${u.login}</span>
+            <span class="mono" style="color:var(--text3)">${u.login}</span>
             ${roleBadge} ${statusBadge}
           </div>
           <div class="user-card-perms" style="margin-top:6px;display:flex;gap:4px;flex-wrap:wrap">${permLabels}</div>
@@ -2380,7 +2380,7 @@
       return `
     <div class="form-grid">
       <div class="form-group full"><label>Nome Completo *</label><input id="uf-nome" value="${u?.nome || ''}" placeholder="Ex: João Silva"></div>
-      <div class="form-group"><label>Login *</label><input id="uf-login" value="${u?.login || ''}" placeholder="joao.silva" ${u?.id === currentUser?.id ? 'readonly' : ''}></div>
+      <div class="form-group"><label>E-mail *</label><input type="email" id="uf-login" value="${u?.login || ''}" placeholder="joao@exemplo.com" ${u?.id === currentUser?.id ? 'readonly' : ''}></div>
       <div class="form-group"><label>Senha ${u ? '(deixe vazio para manter)' : '*'}</label><input type="password" id="uf-senha" placeholder="${u ? 'Nova senha (opcional)' : 'Mínimo 8 caracteres'}"></div>
       <div class="form-group"><label>Papel</label>
         <select id="uf-papel" onchange="onPapelChange()">
@@ -3529,6 +3529,7 @@
           <div style="display:flex; border-bottom:1px solid var(--border); margin-bottom:20px;">
             <div id="tab-geral" class="nav-item active" style="padding:10px 20px; cursor:pointer;" onclick="switchSettingsTab('geral')">Loja</div>
             <div id="tab-vendedores" class="nav-item" style="padding:10px 20px; cursor:pointer;" onclick="switchSettingsTab('vendedores')">Vendedores</div>
+            <div id="tab-taxas" class="nav-item" style="padding:10px 20px; cursor:pointer;" onclick="switchSettingsTab('taxas')">Taxas de Pagamento</div>
           </div>
           
           <div id="settings-tab-geral">
@@ -3577,7 +3578,24 @@
               <div class="section-title" style="margin:0;">Vendedores Ativos</div>
               <button class="btn btn-primary" onclick="novoVendedor()">+ Novo Vendedor</button>
             </div>
-            <div class="tbl-wrap" id="vend-tbl"><div class="empty"><div class="empty-icon">⏳</div><p>Carregando...</p></div></div>
+          </div>
+
+          <div id="settings-tab-taxas" style="display:none;">
+            <div class="section-title">Configuração de Taxas (%)</div>
+            <p style="color: var(--text2); font-size: 13px; margin-bottom: 20px;">Defina as taxas cobradas por cada operadora ou forma de pagamento para cálculo de lucro líquido real.</p>
+            <div class="card">
+              <div class="tbl-wrap">
+                <table id="taxas-tbl">
+                  <thead><tr><th>Forma de Pagamento</th><th>Taxa (%)</th></tr></thead>
+                  <tbody id="taxas-body">
+                    <tr><td colspan="2" style="text-align:center">Carregando...</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <div style="margin-top: 20px;">
+              <button class="btn btn-primary" onclick="salvarTaxas()">💾 Salvar Taxas</button>
+            </div>
           </div>
         </div>
       `;
@@ -3615,11 +3633,44 @@
     function switchSettingsTab(tab) {
       document.getElementById('tab-geral').classList.remove('active');
       document.getElementById('tab-vendedores').classList.remove('active');
+      document.getElementById('tab-taxas').classList.remove('active');
       document.getElementById('settings-tab-geral').style.display = 'none';
       document.getElementById('settings-tab-vendedores').style.display = 'none';
+      document.getElementById('settings-tab-taxas').style.display = 'none';
 
       document.getElementById('tab-' + tab).classList.add('active');
       document.getElementById('settings-tab-' + tab).style.display = 'block';
+      if (tab === 'taxas') loadTaxasView();
+    }
+
+    async function loadTaxasView() {
+      const data = await api('/api/config/pagamentos');
+      const formas = ['DINHEIRO', 'PIX', 'CARTÃO DE DÉBITO', 'CARTÃO DE CRÉDITO', 'BOLETO'];
+      const tbody = document.getElementById('taxas-body');
+      
+      tbody.innerHTML = formas.map(f => {
+        const config = data.find(c => c.nome === f);
+        const taxa = config ? config.taxa : 0;
+        return `<tr>
+          <td><b>${f}</b></td>
+          <td><input type="number" step="0.01" class="taxa-input" data-nome="${f}" value="${taxa}" style="width:100px; padding:4px 8px; border:1px solid var(--border); border-radius:4px"></td>
+        </tr>`;
+      }).join('');
+    }
+
+    async function salvarTaxas() {
+      const inputs = document.querySelectorAll('.taxa-input');
+      const payload = Array.from(inputs).map(i => ({
+        nome: i.getAttribute('data-nome'),
+        taxa: parseFloat(i.value) || 0
+      }));
+
+      const r = await api('/api/config/pagamentos', 'POST', payload);
+      if (r?.ok) {
+        notify('Taxas atualizadas com sucesso!', 'success');
+      } else {
+        notify('Erro ao salvar taxas', 'error');
+      }
     }
 
     async function loadVendedoresView() {

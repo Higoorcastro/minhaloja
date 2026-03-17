@@ -285,10 +285,26 @@ def init_db():
             forma_pagamento TEXT DEFAULT 'DINHEIRO',
             criado_em TIMESTAMP DEFAULT NOW()
         );
+        CREATE TABLE IF NOT EXISTS pagamento_taxas (
+            id SERIAL PRIMARY KEY,
+            tenant_id INTEGER REFERENCES tenants(id) ON DELETE CASCADE,
+            nome TEXT NOT NULL,
+            taxa DECIMAL(5,2) DEFAULT 0,
+            UNIQUE(tenant_id, nome)
+        );
         """)
 
         # Migração: adiciona coluna permissoes se não existir
         cur.execute("ALTER TABLE tenant_usuarios ADD COLUMN IF NOT EXISTS permissoes TEXT DEFAULT '';")
+        
+        # Migração: garante que o login seja único globalmente
+        try:
+            # Remove a constraint antiga per-tenant se existir
+            cur.execute("ALTER TABLE tenant_usuarios DROP CONSTRAINT IF EXISTS _tenant_login_uc;")
+            # Garante que o índice/constraint global exista
+            cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_tenant_usuarios_login_global ON tenant_usuarios(login);")
+        except Exception as e:
+            print(f"⚠️ Aviso na migração de constraints: {e}")
         
         raw_db.commit()
         print("✅ Banco de dados inicializado com sucesso.")
@@ -440,11 +456,14 @@ def login_page():
 @limiter.limit('10 per minute')
 def api_login():
     d = request.json or {}
-    login = (d.get('login') or '').strip()
-    senha = d.get('senha') or ''
-    # Validação mínima no backend (não confiar no front)
+    login = str(d.get('login') or '').strip().lower()
+    senha = str(d.get('senha') or '')
     if not login or not senha or len(login) > 100 or len(senha) > 200:
         return jsonify({'ok': False, 'message': 'Credenciais inválidas'}), 400
+    
+    login = login.lower()
+    if '@' not in login or '.' not in login:
+        return jsonify({'ok': False, 'message': 'Digite um e-mail válido'}), 400
     db = get_db()
 
     user = db.execute(
@@ -599,12 +618,12 @@ def _validar_permissoes(perms_enviadas, modulos_plano, papel):
 def api_usuario_create():
     db = get_db()
     d = request.json or {}
-    login = (d.get('login') or '').strip()
-    nome = (d.get('nome') or '').strip()
+    login = str(d.get('login') or '').strip()
+    nome = str(d.get('nome') or '').strip()
     tid = session['tenant_id']
 
     if not login or not nome or not d.get('senha'):
-        return jsonify({'ok': False, 'message': 'Nome, login e senha são obrigatórios'}), 400
+        return jsonify({'ok': False, 'message': 'Nome, e-mail e senha são obrigatórios'}), 400
     if len(d['senha']) < 8:
         return jsonify({'ok': False, 'message': 'Senha: mínimo 8 caracteres'}), 400
 
@@ -613,8 +632,12 @@ def api_usuario_create():
     if total_u >= max_u:
         return jsonify({'ok': False, 'message': f'Limite de {max_u} usuários atingido para o seu plano'}), 403
 
-    if db.execute("SELECT id FROM tenant_usuarios WHERE tenant_id=? AND login=?", (tid, login)).fetchone():
-        return jsonify({'ok': False, 'message': 'Login já existe na loja'}), 400
+    login = login.lower()
+    if '@' not in login or '.' not in login:
+        return jsonify({'ok': False, 'message': 'O login deve ser um e-mail válido'}), 400
+
+    if db.execute("SELECT id FROM tenant_usuarios WHERE login=?", (login,)).fetchone():
+        return jsonify({'ok': False, 'message': 'Este e-mail já está sendo usado no sistema'}), 400
 
     papel = d.get('papel', 'operador')
     perms_str = _validar_permissoes(d.get('permissoes', []), modulos_plano, papel)
@@ -646,11 +669,20 @@ def api_usuario_update(uid):
     _, modulos_plano, _ = _get_plano_info(db, tid)
     perms_str = _validar_permissoes(d.get('permissoes', []), modulos_plano, papel)
 
+    login = str(d.get('login') or '').strip().lower()
+    if login:
+        if '@' not in login or '.' not in login:
+            return jsonify({'ok': False, 'message': 'O login deve ser um e-mail válido'}), 400
+        existe = db.execute("SELECT id FROM tenant_usuarios WHERE login=? AND id != ?", (login, uid)).fetchone()
+        if existe:
+            return jsonify({'ok': False, 'message': 'Este e-mail já está sendo usado no sistema'}), 400
+
     db.execute("UPDATE tenant_usuarios SET nome=?,login=?,papel=?,ativo=?,permissoes=? WHERE tenant_id=? AND id=?",
-               (d['nome'], d['login'], papel, ativo, perms_str, tid, uid))
+               (d['nome'], login, papel, ativo, perms_str, tid, uid))
 
     if d.get('senha'):
-        if len(d['senha']) < 8:
+        senha_str = str(d['senha'])
+        if len(senha_str) < 8:
             return jsonify({'ok': False, 'message': 'Senha: mínimo 8 caracteres'}), 400
         db.execute("UPDATE tenant_usuarios SET senha_hash=? WHERE tenant_id=? AND id=?", (hash_pw(d['senha']), tid, uid))
 
@@ -1139,6 +1171,37 @@ def api_contas_receber_dashboard():
     })
 
 # ══════════════════════════════════════════════════════════════════════════
+# API – Pagamento Config (Taxas)
+# ══════════════════════════════════════════════════════════════════════════
+@app.route('/api/config/pagamentos', methods=['GET'])
+@require_auth
+@require_module('settings')
+def api_pagamentos_config_list():
+    db = get_db(); tid = session['tenant_id']
+    rows = db.execute("SELECT nome, taxa FROM pagamento_taxas WHERE tenant_id=?", (tid,)).fetchall()
+    return jsonify(rows_to_list(rows))
+
+@app.route('/api/config/pagamentos', methods=['POST'])
+@require_auth
+@require_module('settings')
+def api_pagamentos_config_save():
+    db = get_db(); tid = session['tenant_id']; d = request.json
+    # d deve ser uma lista de objetos {nome, taxa}
+    if not isinstance(d, list): return jsonify({'ok': False, 'message': 'Payload inválido'}), 400
+    
+    for it in d:
+        nome = it.get('nome')
+        taxa = it.get('taxa', 0)
+        db.execute("""
+            INSERT INTO pagamento_taxas (tenant_id, nome, taxa) 
+            VALUES (?, ?, ?) 
+            ON CONFLICT (tenant_id, nome) DO UPDATE SET taxa = EXCLUDED.taxa
+        """, (tid, nome, taxa))
+    
+    db.commit()
+    return jsonify({'ok': True})
+
+# ══════════════════════════════════════════════════════════════════════════
 # API – Relatórios
 # ══════════════════════════════════════════════════════════════════════════
 @app.route('/api/relatorios/vendas')
@@ -1164,10 +1227,40 @@ def rel_vendas():
         params_itens.append(int(vid))
 
     fmt2 = {"mes":"to_char(criado_em, 'YYYY-MM')","semana":"to_char(criado_em, 'IYYY-IW')"}.get(ag,"date(criado_em)::text")
+    
+    # Resumo temporal (vendas brutas)
     resumo=rows_to_list(db.execute(f"SELECT {fmt2} as periodo,COUNT(*) as qtd_vendas,SUM(total) as total,SUM(desconto) as desconto,AVG(total) as ticket_medio FROM vendas WHERE {where} GROUP BY periodo ORDER BY periodo", params).fetchall())
-    formas=rows_to_list(db.execute(f"SELECT forma_pagamento,COUNT(*) as qtd,SUM(total) as total FROM vendas WHERE {where} GROUP BY forma_pagamento", params).fetchall())
+    
+    # Formas de pagamento com calculo de taxas
+    formas=rows_to_list(db.execute(f"""
+        SELECT 
+            v.forma_pagamento,
+            COUNT(*) as qtd,
+            SUM(v.total) as total,
+            SUM(v.total * (1 - COALESCE(pt.taxa, 0) / 100)) as total_liquido,
+            SUM(v.total * (COALESCE(pt.taxa, 0) / 100)) as total_taxas
+        FROM vendas v
+        LEFT JOIN pagamento_taxas pt ON pt.tenant_id = v.tenant_id AND pt.nome = v.forma_pagamento
+        WHERE {where_itens}
+        GROUP BY v.forma_pagamento
+    """, params_itens).fetchall())
+    
     top=rows_to_list(db.execute(f"SELECT vi.produto_nome,SUM(vi.quantidade) as qtd,SUM(vi.subtotal) as total FROM venda_itens vi JOIN vendas v ON v.id=vi.venda_id WHERE {where_itens} GROUP BY vi.produto_nome ORDER BY total DESC LIMIT 20", params_itens).fetchall())
-    totais=dict(db.execute(f"SELECT COUNT(*) as qtd,COALESCE(SUM(total),0) as total,COALESCE(SUM(desconto),0) as desconto FROM vendas WHERE {where}", params).fetchone())
+    
+    totais_raw = db.execute(f"""
+        SELECT 
+            COUNT(*) as qtd,
+            COALESCE(SUM(v.total),0) as total,
+            COALESCE(SUM(v.desconto),0) as desconto,
+            COALESCE(SUM(v.total * (COALESCE(pt.taxa, 0) / 100)), 0) as total_taxas
+        FROM vendas v
+        LEFT JOIN pagamento_taxas pt ON pt.tenant_id = v.tenant_id AND pt.nome = v.forma_pagamento
+        WHERE {where_itens}
+    """, params_itens).fetchone()
+    
+    totais = dict(totais_raw)
+    totais['total_liquido'] = totais['total'] - totais['total_taxas']
+    
     return jsonify({'resumo':resumo,'formas_pagamento':formas,'top_produtos':top,'totais':totais})
 
 @app.route('/api/relatorios/financeiro')
