@@ -51,29 +51,43 @@
       height: 100vh
     }
 
-    /* SIDEBAR */
+    /* SIDEBAR NEURAL-TEC */
     #sidebar {
-      width: 220px;
-      min-width: 220px;
+      width: 240px;
+      min-width: 240px;
       background: var(--bg2);
       border-right: 1px solid var(--border);
       display: flex;
       flex-direction: column;
       overflow: hidden;
-      transition: width .25s ease
+      transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      position: relative;
     }
 
     #sidebar.collapsed {
-      width: 60px;
-      min-width: 60px
+      width: 68px;
+      min-width: 68px;
     }
 
     #sidebar-header {
-      padding: 18px 16px 14px;
-      border-bottom: 1px solid var(--border);
+      padding: 24px 20px;
       display: flex;
       align-items: center;
-      gap: 10px
+      gap: 12px;
+      position: relative;
+    }
+
+    /* Active Rail Indicator */
+    #nav-rail {
+      position: absolute;
+      left: 0;
+      width: 3px;
+      height: 36px;
+      background: var(--blue);
+      box-shadow: 0 0 10px rgba(88, 166, 255, 0.5);
+      transition: top 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+      z-index: 10;
+      display: none;
     }
 
     .logo-icon {
@@ -106,27 +120,31 @@
     .nav-item {
       display: flex;
       align-items: center;
-      gap: 10px;
-      padding: 9px 10px;
-      border-radius: 8px;
+      gap: 12px;
+      padding: 10px 14px;
+      border-radius: 2px; /* Precision sharp edges */
       cursor: pointer;
-      transition: background .15s, color .15s;
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
       color: var(--text2);
       white-space: nowrap;
       overflow: hidden;
-      margin-bottom: 2px;
-      font-size: 13.5px;
-      font-weight: 500
+      margin-bottom: 4px;
+      font-size: 13px;
+      font-weight: 500;
+      letter-spacing: 0.3px;
+      position: relative;
     }
 
     .nav-item:hover {
       background: var(--bg3);
-      color: var(--text)
+      color: var(--text);
+      padding-left: 18px; /* Subtle push effect */
     }
 
     .nav-item.active {
-      background: rgba(88, 166, 255, .12);
-      color: var(--blue)
+      background: rgba(88, 166, 255, 0.08); /* Minimalist active state */
+      color: var(--text);
+      font-weight: 600;
     }
 
     .nav-item.disabled {
@@ -162,10 +180,11 @@
       font-weight: 700;
       color: var(--text3);
       text-transform: uppercase;
-      letter-spacing: 0.8px;
-      padding: 12px 14px 6px;
+      letter-spacing: 1.5px; /* Refined technical look */
+      padding: 24px 14px 10px;
       transition: opacity .2s;
-      white-space: nowrap
+      white-space: nowrap;
+      opacity: 0.7;
     }
 
     #sidebar.collapsed .nav-title {
@@ -177,12 +196,12 @@
     /* USER INFO in sidebar bottom */
     #sidebar-user {
       border-top: 1px solid var(--border);
-      padding: 12px 14px;
+      padding: 16px 14px;
       display: flex;
       align-items: center;
-      gap: 10px;
+      gap: 12px;
       cursor: default;
-      transition: background .15s;
+      background: rgba(22, 27, 34, 0.5); /* Layered depth */
     }
 
     #sidebar.collapsed #sidebar-user {
@@ -191,17 +210,18 @@
     }
 
     .user-avatar {
-      width: 30px;
-      height: 30px;
-      border-radius: 8px;
+      width: 32px;
+      height: 32px;
+      border-radius: 4px; /* Matches sharp theme */
       flex-shrink: 0;
-      background: linear-gradient(135deg, var(--accent), var(--purple));
+      background: linear-gradient(135deg, var(--accent), var(--accent-hover));
       display: flex;
       align-items: center;
       justify-content: center;
       font-size: 13px;
       font-weight: 700;
       color: #fff;
+      box-shadow: 0 4px 12px rgba(31, 111, 235, 0.2);
     }
 
     .user-info {
@@ -261,15 +281,17 @@
     }
 
     #collapse-btn {
-      padding: 10px 16px;
+      padding: 14px 20px;
       cursor: pointer;
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 10px;
       color: var(--text3);
-      transition: color .15s;
-      font-size: 12px;
-      border-top: 1px solid var(--border)
+      transition: all 0.2s ease;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      border-top: 1px solid var(--border);
     }
 
     #collapse-btn:hover {
@@ -1838,6 +1860,7 @@
   <div id="app">
     <!-- SIDEBAR -->
     <div id="sidebar">
+      <div id="nav-rail"></div>
       <div id="sidebar-header">
         <img id="sidebar-logo" src="/static/img/logo.png" class="logo-icon" alt="Logo" onerror="this.onerror=null;this.src='/static/img/logo.png'">
         <div class="logo-text">
@@ -2172,20 +2195,30 @@
     }
 
     async function navigate(page) {
-      // Permission check
       if (currentUser && currentUser.papel !== 'admin' && !currentUser.permissions.includes(page)) {
         notify('Sem permissão para acessar este módulo', 'error'); return;
       }
       if (_navigating) return;
       _navigating = true;
 
-      // Update nav active state
       currentPage = page;
-      document.querySelectorAll('.nav-item').forEach(el => {
-        el.classList.toggle('active', el.dataset.page === page);
+      const navItems = document.querySelectorAll('.nav-item');
+      let activeEl = null;
+
+      navItems.forEach(el => {
+        const isActive = el.dataset.page === page;
+        el.classList.toggle('active', isActive);
+        if (isActive) activeEl = el;
       });
 
-      // Page title
+      // Update Nav Rail position
+      const rail = document.getElementById('nav-rail');
+      if (rail && activeEl) {
+        rail.style.display = 'block';
+        rail.style.top = activeEl.offsetTop + 'px';
+        rail.style.height = activeEl.offsetHeight + 'px';
+      }
+
       const titles = {
         dashboard: 'Dashboard', pdv: 'Ponto de Venda', vendas: 'Vendas', os: 'Ordens de Serviço',
         produtos: 'Produtos', clientes: 'Clientes', financeiro: 'Financeiro', receber: 'A Receber',
@@ -2194,7 +2227,6 @@
       document.getElementById('page-title').textContent = titles[page] || page;
       document.getElementById('topbar-actions').innerHTML = '';
 
-      // ── Transition: exit current content ──────────────────────────
       const content = document.getElementById('content');
       _showProgress(30);
 
@@ -2204,7 +2236,6 @@
 
       _showProgress(65);
 
-      // ── Render new module ──────────────────────────────────────────
       const renderer = {
         dashboard: renderDashboard, pdv: renderPDV, vendas: renderVendas, os: renderOS,
         produtos: renderProdutos, clientes: renderClientes, financeiro: renderFinanceiro, receber: renderFinanceiro,
@@ -2215,7 +2246,6 @@
 
       if (renderer) await renderer();
 
-      // ── Transition: enter new content ──────────────────────────────
       content.classList.add('page-entering');
       content.addEventListener('animationend', () => content.classList.remove('page-entering'), { once: true });
 
