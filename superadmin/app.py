@@ -1,22 +1,18 @@
 import os
-print("BOOT: Starting superadmin/app.py")
 import sys
 import hashlib
 import bcrypt
 import secrets
+import traceback
 from datetime import datetime, date
 from flask import Flask, render_template, request, jsonify, session, redirect
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from dotenv import load_dotenv
 
-# Importando DB e Modelos
 from models import db, SuperadminUsuario, Plano, Tenant, TenantUsuario
 from auth import require_superadmin
-print("BOOT: Imports completed")
 
-# Carrega var de ambiente
-import traceback
 load_dotenv()
 
 app = Flask(__name__)
@@ -32,12 +28,11 @@ app.config['SQLALCHEMY_DATABASE_URI'] = _db_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
-app.config['SESSION_COOKIE_SECURE'] = False
+app.config['SESSION_COOKIE_SECURE'] = os.environ.get('SESSION_COOKIE_SECURE', 'false').lower() == 'true'
 
 limiter = Limiter(app=app, key_func=get_remote_address, default_limits=[], storage_uri='memory://')
 
 db.init_app(app)
-print("BOOT: Database initialized")
 
 def hash_pw(pw):
     """Hash a password using bcrypt."""
@@ -117,57 +112,30 @@ def usuarios_page():
 @app.route('/api/auth/login', methods=['POST'])
 @limiter.limit('10 per minute')
 def api_login():
-    import sys
-    sys.stderr.write("DEBUG ADMIN LOGIN: Start\n")
-    sys.stderr.flush()
     try:
         d = request.json or {}
-        sys.stderr.write(f"DEBUG ADMIN LOGIN: JSON loaded: {bool(d)}\n")
-        sys.stderr.flush()
-        
         login = (d.get('login') or '').strip()
         senha = d.get('senha') or ''
         if not login or not senha or len(login) > 100:
             return jsonify({'ok': False, 'message': 'Credenciais inválidas'}), 400
 
-        sys.stderr.write("DEBUG ADMIN LOGIN: Querying SuperadminUsuario\n")
-        sys.stderr.flush()
         user = SuperadminUsuario.query.filter_by(login=login, ativo=True).first()
-        
-        sys.stderr.write(f"DEBUG ADMIN LOGIN: User found: {bool(user)}\n")
-        sys.stderr.flush()
         if not user:
             return jsonify({'ok': False, 'message': 'Login ou senha incorretos'}), 401
 
-        sys.stderr.write("DEBUG ADMIN LOGIN: Verifying password\n")
-        sys.stderr.flush()
         result = verify_pw(senha, user.senha_hash)
-        
-        sys.stderr.write(f"DEBUG ADMIN LOGIN: Password verify result: {result}\n")
-        sys.stderr.flush()
         if not result:
             return jsonify({'ok': False, 'message': 'Login ou senha incorretos'}), 401
 
         if isinstance(result, tuple) and result[1] == 'migrate':
-            sys.stderr.write("DEBUG ADMIN LOGIN: Migrating password\n")
-            sys.stderr.flush()
             user.senha_hash = hash_pw(senha)
             db.session.commit()
 
-        sys.stderr.write("DEBUG ADMIN LOGIN: Setting session\n")
-        sys.stderr.flush()
         session.clear()
         session['superadmin_id'] = user.id
         session['superadmin_nome'] = user.nome
-
-        sys.stderr.write("DEBUG ADMIN LOGIN: Success\n")
-        sys.stderr.flush()
         return jsonify({'ok': True, 'nome': user.nome})
     except Exception as e:
-        import traceback
-        sys.stderr.write(f"DEBUG ADMIN LOGIN ERROR: {str(e)}\n")
-        sys.stderr.write(traceback.format_exc())
-        sys.stderr.flush()
         raise e
 
 @app.route('/api/auth/logout', methods=['POST'])

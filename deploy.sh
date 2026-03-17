@@ -19,7 +19,7 @@ sleep 5
 
 echo -e "${BLUE}⚙️ Executando script de inicialização do banco...${NC}"
 # Executa o init_db dentro do container da loja
-docker exec -it minhaloja_app python app.py init
+docker exec minhaloja_app python app.py init
 
 echo -e "${GREEN}✅ Deploy finalizado com sucesso!${NC}"
 echo -e "📍 Loja: http://localhost:5678"

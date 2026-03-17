@@ -5,18 +5,16 @@ services:
     image: postgres:15-alpine
     container_name: minhaloja_db
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: hzqegUOcjhT1oqw0Gxfn4F3oQh1u1JdJ
-      POSTGRES_DB:  minhaloja_db
-    # Porta do banco NUNCA deve ser exposta publicamente em producao
-    # ports: - "5432:5432"
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     restart: unless-stopped
     networks:
       - minhaloja_net
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d minhaloja_db"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -26,19 +24,18 @@ services:
     container_name: minhaloja_app
     environment:
       - APP_TYPE=loja
-      - FLASK_ENV=production
-      - DB_URL=postgresql://postgres:hzqegUOcjhT1oqw0Gxfn4F3oQh1u1JdJ@db:5432/minhaloja_db
-      # IMPORTANTE: Gere uma chave aleatória e segura antes de fazer deploy!
-      # python3 -c "import secrets; print(secrets.token_hex(32))"
+      - FLASK_DEBUG=0
+      - DB_URL=${DB_URL}
       - SECRET_KEY=${SECRET_KEY}
+      - SESSION_COOKIE_SECURE=${SESSION_COOKIE_SECURE:-false}
+      - GUNICORN_WORKERS=${GUNICORN_WORKERS:-2}
+      - GUNICORN_TIMEOUT=${GUNICORN_TIMEOUT:-120}
     ports:
       - "5678:5678"
     depends_on:
       db:
         condition: service_healthy
     restart: unless-stopped
-    volumes:
-      - .:/app
     networks:
       - minhaloja_net
 
@@ -47,19 +44,18 @@ services:
     container_name: minhaloja_admin
     environment:
       - APP_TYPE=admin
-      - FLASK_ENV=production
-      - DB_URL=postgresql://postgres:hzqegUOcjhT1oqw0Gxfn4F3oQh1u1JdJ@db:5432/minhaloja_db
-      # IMPORTANTE: Gere uma chave aleatória e segura antes de fazer deploy!
-      # python3 -c "import secrets; print(secrets.token_hex(32))"
+      - FLASK_DEBUG=0
+      - DB_URL=${DB_URL}
       - SECRET_KEY=${SECRET_KEY}
+      - SESSION_COOKIE_SECURE=${SESSION_COOKIE_SECURE:-false}
+      - GUNICORN_WORKERS=${GUNICORN_WORKERS:-2}
+      - GUNICORN_TIMEOUT=${GUNICORN_TIMEOUT:-120}
     ports:
       - "5679:5679"
     depends_on:
       db:
         condition: service_healthy
     restart: unless-stopped
-    volumes:
-      - .:/app
     networks:
       - minhaloja_net
 

@@ -2,7 +2,6 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Instalar dependências do sistema para psycopg2
 RUN apt-get update && apt-get install -y \
     libpq-dev \
     gcc \
@@ -13,14 +12,29 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-# Variável para saber qual app rodar (app.py ou superadmin/app.py)
 ENV APP_TYPE=loja
 
 EXPOSE 5678
 EXPOSE 5679
 
-CMD ["sh", "-c", "if [ \"$APP_TYPE\" = \"admin\" ]; then \
-    gunicorn --chdir superadmin --reload -b 0.0.0.0:5679 app:app; \
-    else \
-    gunicorn --reload -b 0.0.0.0:5678 app:app; \
-    fi"]
+CMD ["sh", "-c", "\
+  if [ \"$APP_TYPE\" = \"admin\" ]; then \
+    exec gunicorn \
+      --chdir superadmin \
+      --bind 0.0.0.0:5679 \
+      --workers ${GUNICORN_WORKERS:-2} \
+      --timeout ${GUNICORN_TIMEOUT:-120} \
+      --access-logfile - \
+      --error-logfile - \
+      --log-level warning \
+      app:app; \
+  else \
+    exec gunicorn \
+      --bind 0.0.0.0:5678 \
+      --workers ${GUNICORN_WORKERS:-2} \
+      --timeout ${GUNICORN_TIMEOUT:-120} \
+      --access-logfile - \
+      --error-logfile - \
+      --log-level warning \
+      app:app; \
+  fi"]

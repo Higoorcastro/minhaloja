@@ -42,8 +42,8 @@ if not _secret:
 app.secret_key = _secret
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
-# Desabilita cookie seguro pois o site usa HTTP. Ativar apenas se tiver HTTPS real.
-app.config['SESSION_COOKIE_SECURE'] = False
+# Ativar SESSION_COOKIE_SECURE=true no .env apenas se o Nginx tiver HTTPS configurado
+app.config['SESSION_COOKIE_SECURE'] = os.getenv('SESSION_COOKIE_SECURE', 'false').lower() == 'true'
 
 # Rate Limiter (armazenado em memória; para produção multi-worker use Redis)
 limiter = Limiter(
