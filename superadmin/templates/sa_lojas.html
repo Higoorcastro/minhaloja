@@ -33,71 +33,80 @@
         </table>
     </div>
 </div>
-
-<!-- Modal Formulário -->
-<div id="modal-form" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 hidden items-center justify-center p-4 opacity-0 transition-opacity duration-300">
-    <div class="bg-white w-full max-w-lg rounded-2xl shadow-2xl scale-95 transition-transform duration-300 transform flex flex-col" id="modal-content" style="max-height: 90vh;">
-        <div class="px-6 py-4 border-b border-slate-100 flex justify-between items-center">
-            <h3 class="text-lg font-semibold text-slate-800" id="modal-title">Nova Loja</h3>
-            <button onclick="fecharModal()" class="text-slate-400 hover:text-slate-600 transition-colors p-1 rounded-md hover:bg-slate-100">
-                <i data-lucide="x" class="w-5 h-5"></i>
-            </button>
-        </div>
-        
-        <form id="form-loja" class="p-6 space-y-4" style="overflow-y: auto;" onsubmit="event.preventDefault(); salvarLoja();">
-            <input type="hidden" id="loja_id">
-            
-            <div>
-                <label class="block text-sm font-medium text-slate-700 mb-1" for="nome">Nome Comercial</label>
-                <input type="text" id="nome" required class="w-full px-3 py-2 bg-white border border-slate-300 text-slate-800 rounded-lg focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 outline-none text-sm">
-            </div>
-            
-            <div class="grid grid-cols-2 gap-4">
-                <div>
-                    <label class="block text-sm font-medium text-slate-700 mb-1" for="cnpj">CNPJ / CPF</label>
-                    <input type="text" id="cnpj" class="w-full px-3 py-2 bg-white border border-slate-300 text-slate-800 rounded-lg focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 outline-none text-sm">
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-slate-700 mb-1" for="telefone">Telefone</label>
-                    <input type="text" id="telefone" class="w-full px-3 py-2 bg-white border border-slate-300 text-slate-800 rounded-lg focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 outline-none text-sm">
-                </div>
-            </div>
-            
-            <div>
-                <label class="block text-sm font-medium text-slate-700 mb-1" for="email">E-mail de Contato</label>
-                <input type="email" id="email" class="w-full px-3 py-2 bg-white border border-slate-300 text-slate-800 rounded-lg focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 outline-none text-sm">
-            </div>
-            
-            <div class="grid grid-cols-2 gap-4">
-                <div>
-                    <label class="block text-sm font-medium text-slate-700 mb-1" for="plano_id">Plano</label>
-                    <select id="plano_id" class="w-full px-3 py-2 bg-white border border-slate-300 text-slate-800 rounded-lg focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 outline-none text-sm">
-                        <!-- populado js -->
-                    </select>
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-slate-700 mb-1" for="status">Status</label>
-                    <select id="status" class="w-full px-3 py-2 bg-white border border-slate-300 text-slate-800 rounded-lg focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 outline-none text-sm">
-                        <option value="ATIVO">Ativo</option>
-                        <option value="SUSPENSO">Suspenso</option>
-                        <option value="CANCELADO">Cancelado</option>
-                    </select>
-                </div>
-            </div>
-
-            <div class="pt-4 flex justify-end gap-3 border-t border-slate-100 mt-6">
-                <button type="button" onclick="fecharModal()" class="px-4 py-2 bg-white border border-slate-300 text-slate-700 font-medium rounded-lg hover:bg-slate-50 transition-colors text-sm">Cancelar</button>
-                <button type="submit" id="btn-salvar" class="flex items-center px-4 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-500 transition-colors shadow-md shadow-blue-500/30 text-sm disabled:opacity-50 disabled:cursor-not-allowed">
-                    <span id="btn-text">Salvar Loja</span>
-                    <div id="btn-loader" class="hidden ml-2 w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                </button>
-            </div>
-        </form>
-    </div>
-</div>
 {% endblock %}
 
 {% block scripts %}
+<!-- Modal fora do bloco content para evitar interferência do containing block -->
+<div id="modal-form" class="fixed inset-0 z-50 hidden" aria-modal="true" role="dialog">
+    <!-- Overlay -->
+    <div class="absolute inset-0 bg-slate-900/50 backdrop-blur-sm" onclick="fecharModal()"></div>
+    <!-- Caixa centralizada -->
+    <div class="relative flex items-center justify-center w-full h-full p-4 pointer-events-none">
+        <div id="modal-content" class="bg-white w-full max-w-lg rounded-2xl shadow-2xl pointer-events-auto flex flex-col" style="max-height: 90vh;">
+            <!-- Header -->
+            <div class="px-6 py-4 border-b border-slate-100 flex justify-between items-center shrink-0">
+                <h3 class="text-lg font-semibold text-slate-800" id="modal-title">Nova Loja</h3>
+                <button onclick="fecharModal()" class="text-slate-400 hover:text-slate-600 transition-colors p-1 rounded-md hover:bg-slate-100">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            <!-- Body com scroll -->
+            <div class="overflow-y-auto flex-1">
+                <form id="form-loja" class="p-6 space-y-4" onsubmit="event.preventDefault(); salvarLoja();">
+                    <input type="hidden" id="loja_id">
+
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1" for="nome">Nome Comercial</label>
+                        <input type="text" id="nome" required class="w-full px-3 py-2 bg-white border border-slate-300 text-slate-800 rounded-lg focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 outline-none text-sm">
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 mb-1" for="cnpj">CNPJ / CPF</label>
+                            <input type="text" id="cnpj" class="w-full px-3 py-2 bg-white border border-slate-300 text-slate-800 rounded-lg focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 outline-none text-sm">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 mb-1" for="telefone">Telefone</label>
+                            <input type="text" id="telefone" class="w-full px-3 py-2 bg-white border border-slate-300 text-slate-800 rounded-lg focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 outline-none text-sm">
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1" for="email">E-mail de Contato</label>
+                        <input type="email" id="email" class="w-full px-3 py-2 bg-white border border-slate-300 text-slate-800 rounded-lg focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 outline-none text-sm">
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 mb-1" for="plano_id">Plano</label>
+                            <select id="plano_id" class="w-full px-3 py-2 bg-white border border-slate-300 text-slate-800 rounded-lg focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 outline-none text-sm">
+                                <!-- populado via JS -->
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 mb-1" for="status">Status</label>
+                            <select id="status" class="w-full px-3 py-2 bg-white border border-slate-300 text-slate-800 rounded-lg focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 outline-none text-sm">
+                                <option value="ATIVO">Ativo</option>
+                                <option value="SUSPENSO">Suspenso</option>
+                                <option value="CANCELADO">Cancelado</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="pt-4 flex justify-end gap-3 border-t border-slate-100">
+                        <button type="button" onclick="fecharModal()" class="px-4 py-2 bg-white border border-slate-300 text-slate-700 font-medium rounded-lg hover:bg-slate-50 transition-colors text-sm">Cancelar</button>
+                        <button type="submit" id="btn-salvar" class="flex items-center px-4 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-500 transition-colors shadow-md shadow-blue-500/30 text-sm disabled:opacity-50 disabled:cursor-not-allowed">
+                            <span id="btn-text">Salvar Loja</span>
+                            <div id="btn-loader" class="hidden ml-2 w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
     let lojas = [];
     let planos = [];
@@ -114,11 +123,11 @@
             ]);
             lojas = await resL.json();
             planos = await resP.json();
-            
-            // Popula os planos no select
-            document.getElementById('plano_id').innerHTML = `<option value="">Sem plano</option>` + 
+
+            document.getElementById('plano_id').innerHTML =
+                `<option value="">Sem plano</option>` +
                 planos.map(p => `<option value="${p.id}">${p.nome}</option>`).join('');
-                
+
             renderTable();
         } catch (e) {
             console.error(e);
@@ -128,18 +137,16 @@
     function renderTable() {
         const tbody = document.getElementById('tabela-body');
         const q = document.getElementById('filtro-nome').value.toLowerCase();
-        
         const views = lojas.filter(l => l.nome.toLowerCase().includes(q));
-        
-        if(views.length === 0) {
+
+        if (views.length === 0) {
             tbody.innerHTML = `<tr><td colspan="5" class="px-6 py-8 text-center text-slate-500">Nenhuma loja encontrada.</td></tr>`;
             return;
         }
 
         tbody.innerHTML = views.map(t => {
-            const stColor = t.status === 'ATIVO' ? 'bg-emerald-100 text-emerald-800' : 
+            const stColor = t.status === 'ATIVO' ? 'bg-emerald-100 text-emerald-800' :
                             t.status === 'SUSPENSO' ? 'bg-amber-100 text-amber-800' : 'bg-red-100 text-red-800';
-            
             return `
                 <tr class="hover:bg-slate-50 transition-colors group">
                     <td class="px-6 py-4">
@@ -165,36 +172,24 @@
                             <i data-lucide="trash-2" class="w-4 h-4"></i>
                         </button>
                     </td>
-                </tr>
-            `;
+                </tr>`;
         }).join('');
         lucide.createIcons();
     }
 
-    // Modal behavior
     const modal = document.getElementById('modal-form');
     const modalContent = document.getElementById('modal-content');
-    
+
     function abrirModal() {
         document.getElementById('form-loja').reset();
         document.getElementById('loja_id').value = '';
         document.getElementById('modal-title').textContent = 'Nova Loja';
-        
         modal.classList.remove('hidden');
-        modal.classList.add('flex');
-        setTimeout(() => {
-            modal.classList.remove('opacity-0');
-            modalContent.classList.remove('scale-95');
-        }, 10);
+        lucide.createIcons();
     }
 
     function fecharModal() {
-        modal.classList.add('opacity-0');
-        modalContent.classList.add('scale-95');
-        setTimeout(() => {
-            modal.classList.add('hidden');
-            modal.classList.remove('flex');
-        }, 300);
+        modal.classList.add('hidden');
     }
 
     function editar(t) {
@@ -206,20 +201,15 @@
         document.getElementById('plano_id').value = t.plano_id || '';
         document.getElementById('status').value = t.status || 'ATIVO';
         document.getElementById('modal-title').textContent = 'Editar Loja';
-        
         modal.classList.remove('hidden');
-        modal.classList.add('flex');
-        setTimeout(() => {
-            modal.classList.remove('opacity-0');
-            modalContent.classList.remove('scale-95');
-        }, 10);
+        lucide.createIcons();
     }
 
     async function salvarLoja() {
         const btn = document.getElementById('btn-salvar');
         const loader = document.getElementById('btn-loader');
         const text = document.getElementById('btn-text');
-        
+
         const id = document.getElementById('loja_id').value;
         const d = {
             nome: document.getElementById('nome').value,
@@ -239,21 +229,20 @@
             text.textContent = 'Salvando...';
 
             const res = await fetch(url, {
-                method, 
-                headers: {'Content-Type':'application/json'}, 
+                method,
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(d)
             });
-
             const result = await res.json();
 
-            if(res.ok && result.ok) {
+            if (res.ok && result.ok) {
                 showToast(id ? 'Loja atualizada com sucesso!' : 'Loja criada com sucesso!');
                 fecharModal();
                 await carregarDados();
             } else {
                 showToast(result.message || 'Erro ao salvar loja', 'error');
             }
-        } catch(e) { 
+        } catch (e) {
             console.error(e);
             showToast('Erro de conexão ou no servidor', 'error');
         } finally {
@@ -262,23 +251,22 @@
             text.textContent = 'Salvar Loja';
         }
     }
+
     async function excluirLoja(id, nome) {
-        const confirmacao = prompt(`⚠️ ATENÇÃO: Deseja realmente excluir a loja "${nome}"? \n\nIsso apagará TODOS os dados vinculados (usuários, vendas, produtos, etc) permanentemente!\n\nPara confirmar, digite o nome da loja abaixo:`);
-        
-        if(!confirmacao) return;
-        if(confirmacao.trim().toLowerCase() !== nome.trim().toLowerCase()) {
+        const confirmacao = prompt(`⚠️ ATENÇÃO: Deseja realmente excluir a loja "${nome}"?\n\nIsso apagará TODOS os dados vinculados permanentemente!\n\nPara confirmar, digite o nome da loja abaixo:`);
+        if (!confirmacao) return;
+        if (confirmacao.trim().toLowerCase() !== nome.trim().toLowerCase()) {
             alert('Confirmação inválida. O nome digitado não corresponde ao nome da loja.');
             return;
         }
-        
         try {
             const res = await fetch(`/api/tenants/${id}`, { method: 'DELETE' });
-            if(res.ok) {
+            if (res.ok) {
                 carregarDados();
             } else {
                 alert('Erro ao excluir loja');
             }
-        } catch(e) { console.error(e); }
+        } catch (e) { console.error(e); }
     }
 </script>
 {% endblock %}
