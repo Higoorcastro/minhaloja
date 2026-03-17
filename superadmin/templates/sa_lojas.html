@@ -238,7 +238,13 @@
         }
     }
     async function excluirLoja(id, nome) {
-        if(!confirm(`⚠️ ATENÇÃO: Deseja realmente excluir a loja "${nome}"? \n\nIsso apagará TODOS os dados vinculados (usuários, vendas, produtos, etc) permanentemente!`)) return;
+        const confirmacao = prompt(`⚠️ ATENÇÃO: Deseja realmente excluir a loja "${nome}"? \n\nIsso apagará TODOS os dados vinculados (usuários, vendas, produtos, etc) permanentemente!\n\nPara confirmar, digite o nome da loja abaixo:`);
+        
+        if(!confirmacao) return;
+        if(confirmacao.trim().toLowerCase() !== nome.trim().toLowerCase()) {
+            alert('Confirmação inválida. O nome digitado não corresponde ao nome da loja.');
+            return;
+        }
         
         try {
             const res = await fetch(`/api/tenants/${id}`, { method: 'DELETE' });

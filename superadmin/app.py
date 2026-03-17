@@ -287,29 +287,44 @@ def api_tenants_list():
 @app.route('/api/tenants', methods=['POST'])
 @require_superadmin
 def api_tenant_create():
-    d = request.json or {}
-    if not d.get('nome'):
-        return jsonify({'ok': False, 'message': 'Nome da loja é obrigatório'}), 400
-        
-    dv = None
-    if d.get('data_vencimento'):
-        try:
-            dv = datetime.strptime(d['data_vencimento'], '%Y-%m-%d').date()
-        except:
-            pass
+    try:
+        d = request.json or {}
+        if not d.get('nome'):
+            return jsonify({'ok': False, 'message': 'Nome da loja é obrigatório'}), 400
             
-    novo = Tenant(
-        nome=d.get('nome'),
-        cnpj=d.get('cnpj'),
-        email=d.get('email'),
-        telefone=d.get('telefone'),
-        plano_id=d.get('plano_id'),
-        status=d.get('status', 'ATIVO'),
-        data_vencimento=dv
-    )
-    db.session.add(novo)
-    db.session.commit()
-    return jsonify({'ok': True, 'id': novo.id})
+        dv = None
+        if d.get('data_vencimento'):
+            try:
+                dv = datetime.strptime(d['data_vencimento'], '%Y-%m-%d').date()
+            except:
+                pass
+                
+        # Garante que plano_id seja int ou None para evitar erro de tipo no SQLAlchemy
+        pid = d.get('plano_id')
+        if pid == "" or pid == "null": pid = None
+        if pid is not None:
+            try:
+                pid = int(pid)
+            except:
+                pid = None
+
+        novo = Tenant(
+            nome=d.get('nome'),
+            cnpj=d.get('cnpj'),
+            email=d.get('email'),
+            telefone=d.get('telefone'),
+            plano_id=pid,
+            status=d.get('status', 'ATIVO'),
+            data_vencimento=dv
+        )
+        db.session.add(novo)
+        db.session.commit()
+        return jsonify({'ok': True, 'id': novo.id})
+    except Exception as e:
+        db.session.rollback()
+        print(f"ERRO API TENANT CREATE: {str(e)}")
+        traceback.print_exc()
+        return jsonify({'ok': False, 'message': f"Erro interno: {str(e)}"}), 500
 
 @app.route('/api/tenants/<int:tid>', methods=['PUT', 'DELETE'])
 @require_superadmin
@@ -323,24 +338,40 @@ def api_tenant_update(tid):
         db.session.commit()
         return jsonify({'ok': True})
         
-    d = request.json or {}
-    t.nome = d.get('nome', t.nome)
-    t.cnpj = d.get('cnpj', t.cnpj)
-    t.email = d.get('email', t.email)
-    t.telefone = d.get('telefone', t.telefone)
-    t.plano_id = d.get('plano_id', t.plano_id)
-    t.status = d.get('status', t.status)
-    if 'data_vencimento' in d:
-        if d['data_vencimento']:
+    try:
+        d = request.json or {}
+        t.nome = d.get('nome', t.nome)
+        t.cnpj = d.get('cnpj', t.cnpj)
+        t.email = d.get('email', t.email)
+        t.telefone = d.get('telefone', t.telefone)
+        
+        # Garante que plano_id seja int ou None
+        pid = d.get('plano_id', t.plano_id)
+        if pid == "" or pid == "null": pid = None
+        if pid is not None:
             try:
-                t.data_vencimento = datetime.strptime(d['data_vencimento'], '%Y-%m-%d').date()
+                pid = int(pid)
             except:
-                pass
-        else:
-            t.data_vencimento = None
-            
-    db.session.commit()
-    return jsonify({'ok': True})
+                pid = t.plano_id
+        t.plano_id = pid
+        
+        t.status = d.get('status', t.status)
+        if 'data_vencimento' in d:
+            if d['data_vencimento']:
+                try:
+                    t.data_vencimento = datetime.strptime(d['data_vencimento'], '%Y-%m-%d').date()
+                except:
+                    pass
+            else:
+                t.data_vencimento = None
+                
+        db.session.commit()
+        return jsonify({'ok': True})
+    except Exception as e:
+        db.session.rollback()
+        print(f"ERRO API TENANT UPDATE: {str(e)}")
+        traceback.print_exc()
+        return jsonify({'ok': False, 'message': f"Erro interno: {str(e)}"}), 500
 
 # ── API Usuários por Tenant ────────────────────────────────────────────────
 @app.route('/api/tenant_usuarios', methods=['GET'])
