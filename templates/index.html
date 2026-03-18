@@ -3602,12 +3602,10 @@
 
     async function renderFinanceiro() {
       const isAdmin = currentUser.papel === 'admin';
-      const hasFluxo = isAdmin || currentUser.permissions.includes('financeiro:fluxo');
-      const hasReceber = isAdmin || currentUser.permissions.includes('financeiro:receber');
+      const hasFluxo = isAdmin || currentUser.permissions?.includes('financeiro:fluxo');
+      const hasReceber = isAdmin || currentUser.permissions?.includes('financeiro:receber');
 
-      // Se não tem nenhuma aba liberada, mas tem o módulo principal, redireciona para a primeira que encontrar
       if (!hasFluxo && !hasReceber) {
-        // Fallback se o módulo está liberado mas nenhuma aba específica está no plano (não deveria ocorrer)
         notify('Nenhuma funcionalidade do financeiro liberada no seu plano', 'warning');
       }
 
@@ -3619,12 +3617,12 @@
 
     async function updateFinanceiroView() {
       const isAdmin = currentUser.papel === 'admin';
-      const hasFluxo = isAdmin || currentUser.permissions.includes('financeiro:fluxo');
-      const hasReceber = isAdmin || currentUser.permissions.includes('financeiro:receber');
+      const hasFluxo = isAdmin || currentUser.permissions?.includes('financeiro:fluxo');
+      const hasReceber = isAdmin || currentUser.permissions?.includes('financeiro:receber');
 
       // Topbar Actions
       let actionsHtml = '';
-      if (currentFinTab === 'fluxo' && hasFinanceiro) {
+      if (currentFinTab === 'fluxo' && hasFluxo) {
         actionsHtml = `<button class="topbar-btn primary" onclick="novaDespesa()">+ Despesa</button>
                       <button class="topbar-btn" onclick="novaCompra()">+ Compra/Entrada</button>`;
       } else if (currentFinTab === 'receber' && hasReceber) {
@@ -3824,11 +3822,16 @@
     // RELATÓRIOS
     // ══════════════════════════════════════════════════════════════
     async function renderRelatorios() {
+      const isAdmin = currentUser.papel === 'admin';
+      const canVendas = isAdmin || currentUser.permissions?.includes('relatorios:vendas');
+      const canFinanceiro = isAdmin || currentUser.permissions?.includes('relatorios:financeiro');
+      const canEstoque = isAdmin || currentUser.permissions?.includes('relatorios:estoque');
+
       document.getElementById('content').innerHTML = `
         <div style="display:flex;gap:10px;margin-bottom:16px">
-          <button class="btn btn-primary" onclick="loadRelVendas()">📊 Vendas</button>
-          <button class="btn" onclick="loadRelFinanceiro()">💰 Financeiro</button>
-          <button class="btn" onclick="loadRelEstoque()">📦 Estoque</button>
+          ${canVendas ? `<button class="btn btn-primary" onclick="loadRelVendas()">📊 Vendas</button>` : ''}
+          ${canFinanceiro ? `<button class="btn" onclick="loadRelFinanceiro()">💰 Financeiro</button>` : ''}
+          ${canEstoque ? `<button class="btn" onclick="loadRelEstoque()">📦 Estoque</button>` : ''}
         </div>
         <div class="filters" style="display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;margin-bottom:16px">
           <div class="filter-group"><label>Data Início</label><input type="date" id="rf-di" value="${firstDay()}"></div>
