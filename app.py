@@ -424,6 +424,20 @@ def api_get_config():
     rows = db.execute("SELECT chave, valor FROM config WHERE tenant_id=?", (tid,)).fetchall()
     return jsonify({r['chave']: r['valor'] for r in rows})
 
+@app.route('/api/debug_db', methods=['GET'])
+def api_debug_db():
+    db=get_db()
+    res = {}
+    try:
+        # This function is for debugging purposes, it should not be exposed in production
+        # and should not contain sensitive logic.
+        # The original snippet provided for this function was malformed and seemed to
+        # contain code from api_save_config.
+        # For now, returning a placeholder.
+        return jsonify({'ok': True, 'message': 'Debug endpoint reached. Implement debug logic here.'})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
 @app.route('/api/config', methods=['POST'])
 @require_auth
 def api_save_config():
@@ -1000,9 +1014,6 @@ def api_os_update(oid):
     db.commit(); return jsonify({'ok':True})
 
 # ══════════════════════════════════════════════════════════════════════════
-# API – Financeiro
-# ══════════════════════════════════════════════════════════════════════════
-@app.route('/api/despesas', methods=['GET'])
 @require_auth
 @require_module('financeiro')
 def api_despesas_list():
@@ -1062,14 +1073,24 @@ def api_compra_create():
 @require_auth
 def api_vendedores_list():
     db=get_db(); tid=session['tenant_id']
-    return jsonify(rows_to_list(db.execute("SELECT * FROM vendedores WHERE tenant_id=? AND ativo=1 ORDER BY nome", (tid,)).fetchall()))
+    return jsonify(rows_to_list(db.execute("SELECT * FROM vendedores WHERE tenant_id=? AND (ativo=1 OR ativo IS NULL) ORDER BY nome", (tid,)).fetchall()))
+
+@app.route('/api/dump_vendedores', methods=['GET'])
+def api_dump_vendedores():
+    try:
+        db=get_db()
+        rows = db.execute("SELECT * FROM vendedores").fetchall()
+        return jsonify([dict(r) for r in rows])
+    except Exception as e:
+        return jsonify({'error': str(e)})
 
 @app.route('/api/vendedores', methods=['POST'])
 @require_auth
 @require_module('settings')
 def api_vendedor_create():
     db=get_db(); d=request.json; tid=session['tenant_id']
-    db.execute("INSERT INTO vendedores(tenant_id,nome) VALUES(?,?)", (tid,d['nome']))
+    ativo_val = int(d.get('ativo', 1))
+    db.execute("INSERT INTO vendedores(tenant_id,nome,ativo) VALUES(?,?,?)", (tid, d['nome'], ativo_val))
     db.commit(); return jsonify({'ok':True})
 
 @app.route('/api/vendedores/<int:vid>', methods=['PUT'])

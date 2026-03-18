@@ -3671,6 +3671,7 @@
               <div class="section-title" style="margin:0;">Vendedores Ativos</div>
               <button class="btn btn-primary" onclick="novoVendedor()">+ Novo Vendedor</button>
             </div>
+            <div id="vend-tbl"></div>
           </div>
 
           <div id="settings-tab-maquininhas" style="display:none;">
@@ -3752,9 +3753,10 @@
       });
       document.getElementById('tab-' + tab).classList.add('active');
       document.getElementById('settings-tab-' + tab).style.display = 'block';
-      if (tab === 'maquininhas') loadMaquininhasView();
-      if (tab === 'usuarios') loadUsuariosTab();
-    }
+       if (tab === 'maquininhas') loadMaquininhasView();
+       if (tab === 'usuarios') loadUsuariosTab();
+       if (tab === 'vendedores') loadVendedoresView();
+     }
 
     async function loadMaquininhasView() {
       const data = await api('/api/maquininhas');
