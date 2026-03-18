@@ -2283,19 +2283,19 @@
       }
 
       // Hide unauthorized nav items
-      if (me.papel !== 'admin') {
-        document.querySelectorAll('.nav-item[data-page]').forEach(el => {
-          const page = el.dataset.page;
-          if (!me.permissions.includes(page)) {
-            // Financeiro hub também acessível via permissão 'receber'
-            if (page === 'financeiro' && me.permissions.includes('receber')) {
-              el.style.display = '';
-            } else {
-              el.style.display = 'none';
-            }
+      document.querySelectorAll('.nav-item[data-page]').forEach(el => {
+        const page = el.dataset.page;
+        if (!me.permissions.includes(page)) {
+          // Financeiro hub também acessível via permissão 'receber'
+          if (page === 'financeiro' && me.permissions.includes('receber')) {
+            el.style.display = '';
+          } else {
+            el.style.display = 'none';
           }
-        });
-      }
+        } else {
+          el.style.display = '';
+        }
+      });
 
       await initShopConfig();
       if (me.papel !== 'admin' && !me.permissions.includes('dashboard') && me.permissions.length > 0) {
@@ -4082,6 +4082,19 @@
       if (tab === 'maquininhas') loadMaquininhasView();
       if (tab === 'contas') loadContasView();
       if (tab === 'usuarios') loadUsuariosTab();
+    }
+
+    async function loadSettings() {
+      const config = await api('/api/config');
+      if (config) {
+        shopConfig = config;
+        document.getElementById('cfg-shop-name').value = config.shop_name || '';
+        document.getElementById('cfg-shop-address').value = config.shop_address || '';
+        document.getElementById('cfg-shop-whatsapp').value = config.shop_whatsapp || '';
+        document.getElementById('cfg-shop-instagram').value = config.shop_instagram || '';
+        const preview = document.getElementById('logo-preview');
+        if (preview) preview.src = config.shop_logo || '/static/img/logo.png';
+      }
     }
 
     async function loadContasView() {

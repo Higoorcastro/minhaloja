@@ -586,12 +586,15 @@ def api_login():
     if not tenant or tenant['status'] != 'ATIVO':
         return jsonify({'ok': False, 'message': 'Loja bloqueada. Contate o administrador.'}), 403
 
-    # Carrega permissões reais: admin tem o que o plano permite, operador tem apenas o que foi configurado
+    # Carrega permissões permitidas pelo plano da loja
+    _, modulos_plano, _ = _get_plano_info(db, user['tenant_id'])
+
     if user['papel'] == 'admin':
-        _, perms, _ = _get_plano_info(db, user['tenant_id'])
+        perms = modulos_plano
     else:
         raw = (user.get('permissoes') or '')
-        perms = [p for p in raw.split(',') if p.strip()] if raw else []
+        # Filtra as permissões do operador para que ele não tenha nada fora do plano
+        perms = [p for p in raw.split(',') if p.strip() and (p in modulos_plano or p.split(':')[0] in modulos_plano)]
 
     session.clear()
     session['user_id']     = user['id']
