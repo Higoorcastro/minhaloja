@@ -2534,11 +2534,12 @@
 
     function buildPermGrid(papel, permissoesSelecionadas = []) {
       const isAdmin = papel === 'admin';
-      const mainModules = Object.keys(ALL_MODULE_LABELS);
+      const planModules = window._planoInfo?.modulos || [];
+      const mainModules = Object.keys(ALL_MODULE_LABELS).filter(m => planModules.includes(m));
       
       return `
     <div class="section-title" style="margin-top:4px">Permissões de Acesso</div>
-    ${isAdmin ? `<div style="font-size:12px;color:var(--green);margin-bottom:8px">✅ Administrador tem acesso total a tudo.</div>` : ''}
+    ${isAdmin ? `<div style="font-size:12px;color:var(--green);margin-bottom:8px">✅ Administrador tem acesso total (dentro do plano).</div>` : ''}
     <div class="perm-grid-v2">
       ${mainModules.map(m => {
         const checked = isAdmin || permissoesSelecionadas.includes(m);
@@ -2553,7 +2554,7 @@
           
           ${Object.keys(subs).length ? `
           <div class="perm-subs" style="margin-left:26px; margin-top:8px; display:grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap:6px">
-            ${Object.entries(subs).map(([subId, subLabel]) => {
+            ${Object.entries(subs).filter(([subId]) => planModules.includes(subId)).map(([subId, subLabel]) => {
               const subChecked = isAdmin || permissoesSelecionadas.includes(subId);
               return `
               <div class="perm-item sub-perm ${subChecked ? 'checked' : ''} ${isAdmin ? 'admin-locked' : ''}" 
@@ -3915,11 +3916,11 @@
       document.getElementById('content').innerHTML = `
         <div class="glass-card" style="max-width: 800px; margin: 0 auto;">
           <div style="display:flex; border-bottom:1px solid var(--border); margin-bottom:20px;">
-            ${isAdmin || currentUser.permissions.includes('settings:geral') ? `<div id="tab-geral" class="nav-item active" style="padding:10px 20px; cursor:pointer;" onclick="switchSettingsTab('geral')">Loja</div>` : ''}
-            ${isAdmin || currentUser.permissions.includes('settings:vendedores') ? `<div id="tab-vendedores" class="nav-item" style="padding:10px 20px; cursor:pointer;" onclick="switchSettingsTab('vendedores')">Vendedores</div>` : ''}
-            ${isAdmin || currentUser.permissions.includes('settings:maquininhas') ? `<div id="tab-maquininhas" class="nav-item" style="padding:10px 20px; cursor:pointer;" onclick="switchSettingsTab('maquininhas')">Maquininhas / Taxas</div>` : ''}
-            ${isAdmin || currentUser.permissions.includes('settings:usuarios') ? `<div id="tab-usuarios" class="nav-item" style="padding:10px 20px; cursor:pointer;" onclick="switchSettingsTab('usuarios')">Usuários</div>` : ''}
-            ${isAdmin || currentUser.permissions.includes('settings:contas') ? `<div id="tab-contas" class="nav-item" style="padding:10px 20px; cursor:pointer;" onclick="switchSettingsTab('contas')">💵 Contas</div>` : ''}
+            ${isAdmin || currentUser.permissions?.includes('settings:geral') ? `<div id="tab-geral" class="nav-item active" style="padding:10px 20px; cursor:pointer;" onclick="switchSettingsTab('geral')">Loja</div>` : ''}
+            ${isAdmin || currentUser.permissions?.includes('settings:vendedores') ? `<div id="tab-vendedores" class="nav-item" style="padding:10px 20px; cursor:pointer;" onclick="switchSettingsTab('vendedores')">Vendedores</div>` : ''}
+            ${isAdmin || currentUser.permissions?.includes('settings:maquininhas') ? `<div id="tab-maquininhas" class="nav-item" style="padding:10px 20px; cursor:pointer;" onclick="switchSettingsTab('maquininhas')">Maquininhas / Taxas</div>` : ''}
+            ${isAdmin || currentUser.permissions?.includes('settings:usuarios') ? `<div id="tab-usuarios" class="nav-item" style="padding:10px 20px; cursor:pointer;" onclick="switchSettingsTab('usuarios')">Usuários</div>` : ''}
+            ${isAdmin || currentUser.permissions?.includes('settings:contas') ? `<div id="tab-contas" class="nav-item" style="padding:10px 20px; cursor:pointer;" onclick="switchSettingsTab('contas')">💵 Contas</div>` : ''}
           </div>
           
           <div id="settings-tab-geral">
@@ -4010,11 +4011,11 @@
 
       // Autoselect first visible tab
       let firstTab = 'geral';
-      if (!isAdmin && !currentUser.permissions.includes('settings:geral')) {
-        if (currentUser.permissions.includes('settings:vendedores')) firstTab = 'vendedores';
-        else if (currentUser.permissions.includes('settings:maquininhas')) firstTab = 'maquininhas';
-        else if (currentUser.permissions.includes('settings:usuarios')) firstTab = 'usuarios';
-        else if (currentUser.permissions.includes('settings:contas')) firstTab = 'contas';
+      if (!isAdmin && !currentUser.permissions?.includes('settings:geral')) {
+        if (currentUser.permissions?.includes('settings:vendedores')) firstTab = 'vendedores';
+        else if (currentUser.permissions?.includes('settings:maquininhas')) firstTab = 'maquininhas';
+        else if (currentUser.permissions?.includes('settings:usuarios')) firstTab = 'usuarios';
+        else if (currentUser.permissions?.includes('settings:contas')) firstTab = 'contas';
       }
       switchSettingsTab(firstTab);
     }
@@ -4064,7 +4065,7 @@
     }
 
     function switchSettingsTab(tab) {
-      if (currentUser.papel !== 'admin' && !currentUser.permissions.includes(`settings:${tab}`)) {
+      if (currentUser.papel !== 'admin' && !currentUser.permissions?.includes(`settings:${tab}`)) {
         notify('Sem permissão para esta aba', 'error'); return;
       }
       ['geral', 'vendedores', 'maquininhas', 'usuarios', 'contas'].forEach(t => {

@@ -468,7 +468,7 @@ def require_module(*modules):
             if not session.get('user_id'):
                 return jsonify({'error':'unauthorized'}), 401
             user_perms = session.get('permissions', [])
-            if session.get('papel') == 'admin' or any(m in user_perms for m in modules):
+            if any(m in user_perms for m in modules):
                 return f(*args, **kwargs)
             return jsonify({'error':'forbidden', 'message': f"Sem permissão: {', '.join(str(m) for m in modules)}"}), 403
         return decorated
@@ -586,9 +586,9 @@ def api_login():
     if not tenant or tenant['status'] != 'ATIVO':
         return jsonify({'ok': False, 'message': 'Loja bloqueada. Contate o administrador.'}), 403
 
-    # Carrega permissões reais: admin tem tudo, operador tem apenas o que foi configurado
+    # Carrega permissões reais: admin tem o que o plano permite, operador tem apenas o que foi configurado
     if user['papel'] == 'admin':
-        perms = ALL_MODULES
+        _, perms, _ = _get_plano_info(db, user['tenant_id'])
     else:
         raw = (user.get('permissoes') or '')
         perms = [p for p in raw.split(',') if p.strip()] if raw else []
@@ -705,10 +705,11 @@ def _get_plano_info(db, tid):
     return row['max_usuarios'], modulos, row['total_usuarios']
 
 def _validar_permissoes(perms_enviadas, modulos_plano, papel):
-    """Filtra permissões enviadas pelo frontend para apenas os módulos válidos do sistema. Admin não precisa."""
+    """Filtra permissões enviadas pelo frontend para apenas os módulos válidos do plano ou sistema."""
     if papel == 'admin':
         return ''
-    validas = [p for p in perms_enviadas if p in ALL_MODULES]
+    # Só permite o que está no plano E existe no sistema
+    validas = [p for p in perms_enviadas if p in modulos_plano and (p.split(':')[0] in ALL_MODULES or p in ALL_MODULES)]
     return ','.join(validas)
 
 @app.route('/api/usuarios', methods=['POST'])
