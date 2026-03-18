@@ -2404,10 +2404,8 @@
         _hideProgress();
         _navigating = false;
         
-        // Auto-close mobile menu if open
-        if (window.innerWidth <= 768) {
-          closeMobileMenu();
-        }
+        // Auto-close mobile menu if open (safe for desktop too)
+        closeMobileMenu();
       }
     }
 

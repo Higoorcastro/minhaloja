@@ -1240,6 +1240,14 @@ def api_movimentacoes_list():
         {where} ORDER BY m.criado_em DESC LIMIT ?""", params + [limit]).fetchall()
     return jsonify(rows_to_list(rows))
 
+@app.route('/api/vendedores', methods=['GET'])
+@require_auth
+def api_vendedores_list():
+    db = get_db()
+    tid = session['tenant_id']
+    rows = db.execute("SELECT * FROM vendedores WHERE tenant_id=? ORDER BY id DESC", (tid,)).fetchall()
+    return jsonify(rows_to_list(rows))
+
 @app.route('/api/vendedores', methods=['POST'])
 @require_auth
 @require_module('settings')
