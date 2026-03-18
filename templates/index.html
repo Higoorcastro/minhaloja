@@ -3781,6 +3781,12 @@
     </div>
     <div class="divider"></div>
     <div class="section-title">Itens da Compra</div>
+    <div id="cp-itens-header" style="display:grid;grid-template-columns:2fr 1fr 1fr 32px;gap:8px;margin-bottom:8px;font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:1px;padding:0 4px">
+      <div>Produto</div>
+      <div>Qtd</div>
+      <div>Vlr Unitário</div>
+      <div></div>
+    </div>
     <div id="cp-itens"></div>
     <button class="btn btn-success" onclick="addCompraItem()" style="margin-top:10px">+ Adicionar Item</button>
     <div style="margin-top:12px;text-align:right;font-size:15px;font-weight:700">Total: <span id="cp-total" class="mono text-orange">R$ 0,00</span></div>
@@ -3788,7 +3794,7 @@
       window._cpItens = []; addCompraItem();
     }
 
-    function addCompraItem() { const opts = allProdutos.map(p => `<option value="${p.id}" data-nome="${p.nome}">${p.nome}</option>`).join(''); const idx = (window._cpItens || []).length; const el = document.createElement('div'); el.id = `cpi-${idx}`; el.style.cssText = 'display:grid;grid-template-columns:2fr 1fr 1fr auto;gap:8px;margin-bottom:8px;align-items:end'; el.innerHTML = `<select id="cpi-prod-${idx}" onchange="calcCpTotal()"><option value="">Selecione...</option>${opts}</select><input type="number" id="cpi-qtd-${idx}" value="1" min="0.01" step="0.01" placeholder="Qtd" onchange="calcCpTotal()"><input type="number" id="cpi-preco-${idx}" value="0" min="0" step="0.01" placeholder="Preço" onchange="calcCpTotal()"><button class="btn btn-sm btn-danger" onclick="rmCpItem(${idx})">✕</button>`; document.getElementById('cp-itens').appendChild(el); if (!window._cpItens) window._cpItens = []; window._cpItens.push({ idx }); }
+    function addCompraItem() { const opts = allProdutos.map(p => `<option value="${p.id}" data-nome="${p.nome}">${p.nome}</option>`).join(''); const idx = (window._cpItens || []).length; const el = document.createElement('div'); el.id = `cpi-${idx}`; el.style.cssText = 'display:grid;grid-template-columns:2fr 1fr 1fr 32px;gap:8px;margin-bottom:8px;align-items:end'; el.innerHTML = `<select id="cpi-prod-${idx}" onchange="calcCpTotal()"><option value="">Selecione...</option>${opts}</select><input type="number" id="cpi-qtd-${idx}" value="1" min="0.01" step="0.01" placeholder="Qtd" onchange="calcCpTotal()"><input type="number" id="cpi-preco-${idx}" value="0" min="0" step="0.01" placeholder="Preço" onchange="calcCpTotal()"><button class="btn btn-sm btn-danger" onclick="rmCpItem(${idx})" style="padding:0;width:32px;height:32px">✕</button>`; document.getElementById('cp-itens').appendChild(el); if (!window._cpItens) window._cpItens = []; window._cpItens.push({ idx }); }
     function rmCpItem(idx) { document.getElementById(`cpi-${idx}`)?.remove(); calcCpTotal(); }
     function calcCpTotal() { let t = 0; document.querySelectorAll('[id^="cpi-qtd-"]').forEach(el => { const i = el.id.split('-').pop(); const q = parseFloat(el.value || 0) || 0; const p = parseFloat(document.getElementById(`cpi-preco-${i}`)?.value || 0) || 0; t += q * p; }); const el = document.getElementById('cp-total'); if (el) el.textContent = fmt(t); }
 
