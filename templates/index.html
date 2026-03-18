@@ -3234,8 +3234,8 @@
     <div class="form-group">
       <label>Código de Barras</label>
       <div style="display:flex;gap:4px">
-        <input id="pf-cod" value="${p?.codigo || ''}" style="flex:1" placeholder="(Clique para gerar o código)">
-        <button type="button" class="btn btn-sm" onclick="gerarCodigoBarras()" title="Gerar código aleatório" style="padding:0 8px;font-size:16px">🎲</button>
+        <input id="pf-cod" value="${p?.codigo || ''}" style="flex:1">
+        <button type="button" class="btn btn-sm" onclick="gerarCodigoBarras()" title="Gerar código aleatório" style="padding:0 12px;">Gerar</button>
       </div>
     </div>
     <div class="form-group" style="grid-column:span 2"><label>Nome *</label><input id="pf-nome" value="${p?.nome || ''}" required></div>
