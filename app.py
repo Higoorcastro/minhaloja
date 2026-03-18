@@ -365,6 +365,33 @@ def init_db():
             WHERE id NOT IN (SELECT DISTINCT tenant_id FROM contas WHERE tenant_id IS NOT NULL)
         """)
 
+        # Performance Otimization: Cria índices para evitar Full Table Scans no PostgreSQL
+        cur.execute("""
+            CREATE INDEX IF NOT EXISTS idx_tenant_usuarios_tenant ON tenant_usuarios(tenant_id);
+            CREATE INDEX IF NOT EXISTS idx_config_tenant ON config(tenant_id);
+            CREATE INDEX IF NOT EXISTS idx_categorias_tenant ON categorias(tenant_id);
+            CREATE INDEX IF NOT EXISTS idx_produtos_tenant ON produtos(tenant_id);
+            CREATE INDEX IF NOT EXISTS idx_clientes_tenant ON clientes(tenant_id);
+            CREATE INDEX IF NOT EXISTS idx_vendedores_tenant ON vendedores(tenant_id);
+            CREATE INDEX IF NOT EXISTS idx_vendas_tenant ON vendas(tenant_id);
+            CREATE INDEX IF NOT EXISTS idx_vendas_criado_em ON vendas(criado_em);
+            CREATE INDEX IF NOT EXISTS idx_maquininhas_tenant ON maquininhas(tenant_id);
+            CREATE INDEX IF NOT EXISTS idx_venda_itens_venda ON venda_itens(venda_id);
+            CREATE INDEX IF NOT EXISTS idx_os_tenant ON ordens_servico(tenant_id);
+            CREATE INDEX IF NOT EXISTS idx_os_status ON ordens_servico(status);
+            CREATE INDEX IF NOT EXISTS idx_os_criado_em ON ordens_servico(criado_em);
+            CREATE INDEX IF NOT EXISTS idx_os_itens_os ON os_itens(os_id);
+            CREATE INDEX IF NOT EXISTS idx_despesas_tenant ON despesas(tenant_id);
+            CREATE INDEX IF NOT EXISTS idx_compras_tenant ON compras(tenant_id);
+            CREATE INDEX IF NOT EXISTS idx_compra_itens_compra ON compra_itens(compra_id);
+            CREATE INDEX IF NOT EXISTS idx_contas_receber_tenant ON contas_receber(tenant_id);
+            CREATE INDEX IF NOT EXISTS idx_recebimentos_conta ON recebimentos(conta_id);
+            CREATE INDEX IF NOT EXISTS idx_pagamento_taxas_tenant ON pagamento_taxas(tenant_id);
+            CREATE INDEX IF NOT EXISTS idx_contas_tenant ON contas(tenant_id);
+            CREATE INDEX IF NOT EXISTS idx_movimentacoes_tenant ON movimentacoes(tenant_id);
+            CREATE INDEX IF NOT EXISTS idx_movimentacoes_conta_id ON movimentacoes(conta_id);
+        """)
+
         raw_db.commit()
         print("✅ Banco de dados inicializado com sucesso.")
     except Exception as e:
