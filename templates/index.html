@@ -3231,7 +3231,13 @@
     function buildProdutoForm(p) {
       const catOpts = allCategorias.map(c => `<option value="${c.id}" ${p && p.categoria_id == c.id ? 'selected' : ''}>${c.nome}</option>`).join('');
       return `<div class="form-grid cols3">
-    <div class="form-group"><label>Código</label><input id="pf-cod" value="${p?.codigo || ''}"></div>
+    <div class="form-group">
+      <label>Código de Barras</label>
+      <div style="display:flex;gap:4px">
+        <input id="pf-cod" value="${p?.codigo || ''}" style="flex:1" placeholder="Manual ou Automático">
+        <button type="button" class="btn btn-sm" onclick="gerarCodigoBarras()" title="Gerar código aleatório" style="padding:0 8px;font-size:16px">🎲</button>
+      </div>
+    </div>
     <div class="form-group" style="grid-column:span 2"><label>Nome *</label><input id="pf-nome" value="${p?.nome || ''}" required></div>
     <div class="form-group full"><label>Descrição</label><textarea id="pf-desc">${p?.descricao || ''}</textarea></div>
     <div class="form-group"><label>Categoria</label><select id="pf-catid"><option value="">Sem categoria</option>${catOpts}</select></div>
@@ -3244,6 +3250,18 @@
   </div>`;
     }
     function calcMargem() { const c = parseFloat(document.getElementById('pf-pcusto')?.value || 0) || 0; const v = parseFloat(document.getElementById('pf-pvenda')?.value || 0) || 0; const el = document.getElementById('pf-margem'); if (el) el.value = c > 0 ? ((v - c) / c * 100).toFixed(1) + '%' : '-'; }
+    
+    function gerarCodigoBarras() {
+      const inp = document.getElementById('pf-cod');
+      if (!inp) return;
+      // Gera um código de 13 dígitos (estilo EAN-13 random)
+      let code = "";
+      for (let i = 0; i < 13; i++) {
+        code += Math.floor(Math.random() * 10).toString();
+      }
+      inp.value = code;
+      notify('Código gerado!', 'success');
+    }
 
     async function novoProduto() { allCategorias = await api('/api/categorias') || []; openModal('Novo Produto', buildProdutoForm(null), `<button class="btn" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="salvarProduto()">Salvar</button>`, 'modal-lg'); setTimeout(calcMargem, 50); }
     async function editarProduto(id) { allCategorias = await api('/api/categorias') || []; const p = (await api('/api/produtos'))?.find(x => x.id === id); openModal('Editar Produto', buildProdutoForm(p), `<button class="btn" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="salvarProduto(${id})">Salvar</button>`, 'modal-lg'); setTimeout(calcMargem, 50); }
