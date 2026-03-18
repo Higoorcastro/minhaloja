@@ -2476,6 +2476,7 @@
       allProdutos = await api('/api/produtos') || [];
       allClientes = await api('/api/clientes') || [];
       allVendedores = await api('/api/vendedores') || [];
+      window._allMaquininhas = await api('/api/maquininhas') || [];
       document.getElementById('topbar-actions').innerHTML = `<button class="topbar-btn" onclick="cart=[];renderCart()">🗑 Limpar</button>`;
       document.getElementById('content').innerHTML = `
   <div id="pdv-wrap">
@@ -2582,12 +2583,30 @@
       const total = Math.max(0, sub - desc);
       const opts = allClientes.map(c => `<option value="${c.id}" data-nome="${c.nome}">${c.nome}</option>`).join('');
       const vendOpts = allVendedores.map(v => `<option value="${v.id}" data-nome="${v.nome}">${v.nome}</option>`).join('');
+      const maqOpts = (window._allMaquininhas || []).map(m => `<option value="${m.id}">${m.nome}</option>`).join('');
+
       openModal('Finalizar Venda', `
     <div class="form-grid">
       <div class="form-group"><label>Cliente</label><select id="co-cli"><option value="">— Sem cliente —</option>${opts}</select></div>
       <div class="form-group"><label>Vendedor</label><select id="co-vend"><option value="">— Sem vendedor —</option>${vendOpts}</select></div>
-      <div class="form-group"><label>Pagamento</label><select id="co-pgto"><option>DINHEIRO</option><option>PIX</option><option>CARTÃO DÉBITO</option><option>CARTÃO CRÉDITO</option><option>BOLETO</option></select></div>
-      <div class="form-group"><label>Observação</label><input type="text" id="co-obs"></div>
+      <div class="form-group">
+        <label>Pagamento</label>
+        <select id="co-pgto" onchange="toggleMaqSelection(this.value)">
+          <option>DINHEIRO</option>
+          <option>PIX</option>
+          <option>CARTÃO DÉBITO</option>
+          <option>CARTÃO CRÉDITO</option>
+          <option>BOLETO</option>
+        </select>
+      </div>
+      <div class="form-group" id="co-maq-wrap" style="display:none;">
+        <label>Maquininha *</label>
+        <select id="co-maq">
+          <option value="">-- Selecione a Máquina --</option>
+          ${maqOpts}
+        </select>
+      </div>
+      <div class="form-group ${maqOpts ? '' : 'full'}"><label>Observação</label><input type="text" id="co-obs"></div>
       <div class="form-group full">
         <div style="background:var(--bg3);border-radius:8px;padding:14px">
           <div class="total-row"><span>Subtotal</span><span class="mono">${fmt(sub)}</span></div>
@@ -2600,6 +2619,16 @@
      <button class="btn btn-primary" onclick="finalizarVenda()">✅ Confirmar</button>`, 'modal-md');
     }
 
+    function toggleMaqSelection(val) {
+      const wrap = document.getElementById('co-maq-wrap');
+      if (val.includes('CARTÃO')) {
+        wrap.style.display = 'block';
+      } else {
+        wrap.style.display = 'none';
+        document.getElementById('co-maq').value = '';
+      }
+    }
+
     async function finalizarVenda() {
       const sub = cart.reduce((a, b) => a + b.subtotal, 0);
       const desc = parseFloat(document.getElementById('cart-desconto')?.value || 0) || 0;
@@ -2610,11 +2639,19 @@
       const vendId = vendSel?.value || null;
       const vendNome = vendId ? vendSel.options[vendSel.selectedIndex].dataset.nome : '';
 
+      const pgto = document.getElementById('co-pgto').value;
+      const maqId = document.getElementById('co-maq')?.value || null;
+
+      if (pgto.includes('CARTÃO') && !maqId && (window._allMaquininhas || []).length > 0) {
+        notify('Selecione a maquininha usada', 'error');
+        return;
+      }
+
       const r = await api('/api/vendas', 'POST', {
         cliente_id: cliId || undefined, cliente_nome: cliNome,
         vendedor_id: vendId || undefined, vendedor_nome: vendNome,
         subtotal: sub, desconto: desc, total: Math.max(0, sub - desc),
-        forma_pagamento: document.getElementById('co-pgto').value,
+        forma_pagamento: pgto, maquininha_id: maqId,
         observacao: document.getElementById('co-obs').value, itens: cart
       });
       if (r?.ok) {
@@ -2679,6 +2716,8 @@
       <div><span class="text-muted">Vendedor:</span> ${d.venda.vendedor_nome || '-'}</div>
       <div><span class="text-muted">Pagamento:</span> ${d.venda.forma_pagamento}</div>
       <div><span class="text-muted">Data:</span> ${new Date(d.venda.criado_em).toLocaleString('pt-BR')}</div>
+      ${d.venda.maquininha_id ? `<div><span class="text-muted">Taxa Operadora:</span> <span class="text-red">-${fmt(d.venda.taxa_valor)}</span></div>` : ''}
+      ${d.venda.maquininha_id ? `<div><span class="text-muted">Valor Líquido:</span> <span class="text-green fw7">${fmt(d.venda.valor_liquido)}</span></div>` : ''}
       <div style="grid-column: 1 / -1;"><span class="text-muted">Status:</span> ${badgeStatus(d.venda.status)}</div>
       ${d.venda.status === 'CANCELADA' && d.venda.motivo_cancelamento ? `<div style="grid-column:1/-1;background:rgba(255,85,85,0.1);border:1px solid rgba(255,85,85,0.3);border-radius:8px;padding:10px;"><span class="text-muted">Motivo do Cancelamento:</span> <span class="text-red">${d.venda.motivo_cancelamento}</span></div>` : ''}
     </div>
@@ -3569,7 +3608,7 @@
           <div style="display:flex; border-bottom:1px solid var(--border); margin-bottom:20px;">
             <div id="tab-geral" class="nav-item active" style="padding:10px 20px; cursor:pointer;" onclick="switchSettingsTab('geral')">Loja</div>
             <div id="tab-vendedores" class="nav-item" style="padding:10px 20px; cursor:pointer;" onclick="switchSettingsTab('vendedores')">Vendedores</div>
-            <div id="tab-taxas" class="nav-item" style="padding:10px 20px; cursor:pointer;" onclick="switchSettingsTab('taxas')">Taxas de Pagamento</div>
+            <div id="tab-maquininhas" class="nav-item" style="padding:10px 20px; cursor:pointer;" onclick="switchSettingsTab('maquininhas')">Maquininhas / Taxas</div>
             <div id="tab-usuarios" class="nav-item" style="padding:10px 20px; cursor:pointer;" onclick="switchSettingsTab('usuarios')">Usuários</div>
           </div>
           
@@ -3621,21 +3660,14 @@
             </div>
           </div>
 
-          <div id="settings-tab-taxas" style="display:none;">
-            <div class="section-title">Configuração de Taxas (%)</div>
-            <p style="color: var(--text2); font-size: 13px; margin-bottom: 20px;">Defina as taxas cobradas por cada operadora ou forma de pagamento para cálculo de lucro líquido real.</p>
-            <div class="card">
-              <div class="tbl-wrap">
-                <table id="taxas-tbl">
-                  <thead><tr><th>Forma de Pagamento</th><th>Taxa (%)</th></tr></thead>
-                  <tbody id="taxas-body">
-                    <tr><td colspan="2" style="text-align:center">Carregando...</td></tr>
-                  </tbody>
-                </table>
-              </div>
+          <div id="settings-tab-maquininhas" style="display:none;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+              <div class="section-title" style="margin:0;">Maquininhas de Cartão</div>
+              <button class="btn btn-primary" onclick="novaMaquininha()">+ Nova Maquininha</button>
             </div>
-            <div style="margin-top: 20px;">
-              <button class="btn btn-primary" onclick="salvarTaxas()">💾 Salvar Taxas</button>
+            <p style="color: var(--text2); font-size: 13px; margin-bottom: 20px;">Cadastre as operadoras que você utiliza para que o sistema calcule o lucro líquido real após as taxas.</p>
+            <div id="maquininhas-list">
+              <div class="empty"><div class="empty-icon">⏳</div><p>Carregando...</p></div>
             </div>
           </div>
 
@@ -3701,44 +3733,92 @@
     }
 
     function switchSettingsTab(tab) {
-      ['geral', 'vendedores', 'taxas', 'usuarios'].forEach(t => {
+      ['geral', 'vendedores', 'maquininhas', 'usuarios'].forEach(t => {
         document.getElementById('tab-' + t).classList.remove('active');
         document.getElementById('settings-tab-' + t).style.display = 'none';
       });
       document.getElementById('tab-' + tab).classList.add('active');
       document.getElementById('settings-tab-' + tab).style.display = 'block';
-      if (tab === 'taxas') loadTaxasView();
+      if (tab === 'maquininhas') loadMaquininhasView();
       if (tab === 'usuarios') loadUsuariosTab();
     }
 
-    async function loadTaxasView() {
-      const data = await api('/api/config/pagamentos');
-      const formas = ['DINHEIRO', 'PIX', 'CARTÃO DE DÉBITO', 'CARTÃO DE CRÉDITO', 'BOLETO'];
-      const tbody = document.getElementById('taxas-body');
-      
-      tbody.innerHTML = formas.map(f => {
-        const config = data.find(c => c.nome === f);
-        const taxa = config ? config.taxa : 0;
-        return `<tr>
-          <td><b>${f}</b></td>
-          <td><input type="number" step="0.01" class="taxa-input" data-nome="${f}" value="${taxa}" style="width:100px; padding:4px 8px; border:1px solid var(--border); border-radius:4px"></td>
-        </tr>`;
-      }).join('');
+    async function loadMaquininhasView() {
+      const data = await api('/api/maquininhas');
+      if (!data) return;
+      const container = document.getElementById('maquininhas-list');
+      if (!data.length) {
+        container.innerHTML = '<div class="empty"><div class="empty-icon">💳</div><p>Nenhuma maquininha cadastrada</p></div>';
+        return;
+      }
+      container.innerHTML = `
+        <div class="card">
+          <div class="tbl-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Nome / Operadora</th>
+                  <th>Taxa Débito (%)</th>
+                  <th>Taxa Crédito (%)</th>
+                  <th>Ações</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${data.map(m => `
+                  <tr>
+                    <td><b>${m.nome}</b></td>
+                    <td class="mono">${m.taxa_debito}%</td>
+                    <td class="mono">${m.taxa_credito}%</td>
+                    <td style="display:flex;gap:4px">
+                      <button class="btn btn-sm" onclick="editarMaquininha(${m.id})">Editar</button>
+                      <button class="btn btn-sm btn-danger" onclick="deletarMaquininha(${m.id}, '${m.nome}')">Excluir</button>
+                    </td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+        </div>`;
     }
 
-    async function salvarTaxas() {
-      const inputs = document.querySelectorAll('.taxa-input');
-      const payload = Array.from(inputs).map(i => ({
-        nome: i.getAttribute('data-nome'),
-        taxa: parseFloat(i.value) || 0
-      }));
+    function novaMaquininha() {
+      openModal('Nova Maquininha', `
+        <div class="form-grid">
+          <div class="form-group full"><label>Nome / Operadora *</label><input id="mq-nome" placeholder="Ex: Stone, PagSeguro, Cielo"></div>
+          <div class="form-group"><label>Taxa Débito (%)</label><input type="number" step="0.01" id="mq-deb" value="0"></div>
+          <div class="form-group"><label>Taxa Crédito (%)</label><input type="number" step="0.01" id="mq-cre" value="0"></div>
+        </div>
+      `, `<button class="btn" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="salvarMaquininha()">Salvar</button>`, 'modal-sm');
+    }
 
-      const r = await api('/api/config/pagamentos', 'POST', payload);
-      if (r?.ok) {
-        notify('Taxas atualizadas com sucesso!', 'success');
-      } else {
-        notify('Erro ao salvar taxas', 'error');
-      }
+    async function editarMaquininha(id) {
+      const data = await api('/api/maquininhas');
+      const m = data.find(x => x.id === id);
+      if (!m) return;
+      openModal('Editar Maquininha', `
+        <div class="form-grid">
+          <div class="form-group full"><label>Nome / Operadora *</label><input id="mq-nome" value="${m.nome}"></div>
+          <div class="form-group"><label>Taxa Débito (%)</label><input type="number" step="0.01" id="mq-deb" value="${m.taxa_debito}"></div>
+          <div class="form-group"><label>Taxa Crédito (%)</label><input type="number" step="0.01" id="mq-cre" value="${m.taxa_credito}"></div>
+        </div>
+      `, `<button class="btn" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="salvarMaquininha(${id})">Salvar</button>`, 'modal-sm');
+    }
+
+    async function salvarMaquininha(id = null) {
+      const nome = document.getElementById('mq-nome')?.value.trim();
+      const deb = parseFloat(document.getElementById('mq-deb')?.value || 0);
+      const cre = parseFloat(document.getElementById('mq-cre')?.value || 0);
+      if (!nome) { notify('Nome é obrigatório', 'error'); return; }
+      const payload = { nome, taxa_debito: deb, taxa_credito: cre };
+      const r = id ? await api(`/api/maquininhas/${id}`, 'PUT', payload) : await api('/api/maquininhas', 'POST', payload);
+      if (r?.ok) { notify('Maquininha salva!', 'success'); closeModal(); loadMaquininhasView(); }
+      else notify('Erro ao salvar', 'error');
+    }
+
+    async function deletarMaquininha(id, nome) {
+      if (!confirm(`Excluir maquininha "${nome}"?`)) return;
+      const r = await api(`/api/maquininhas/${id}`, 'DELETE');
+      if (r?.ok) { notify('Maquininha removida', 'info'); loadMaquininhasView(); }
     }
 
     async function loadVendedoresView() {

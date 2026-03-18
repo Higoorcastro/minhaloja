@@ -185,8 +185,20 @@ def init_db():
             status TEXT DEFAULT 'CONCLUIDA',
             observacao TEXT,
             motivo_cancelamento TEXT,
+            maquininha_id INTEGER,
+            taxa_valor DECIMAL(10,2) DEFAULT 0,
+            valor_liquido DECIMAL(10,2) DEFAULT 0,
             criado_em TIMESTAMP DEFAULT NOW(),
             UNIQUE(tenant_id, numero)
+        );
+        CREATE TABLE IF NOT EXISTS maquininhas (
+            id SERIAL PRIMARY KEY,
+            tenant_id INTEGER REFERENCES tenants(id) ON DELETE CASCADE,
+            nome TEXT NOT NULL,
+            taxa_debito DECIMAL(5,2) DEFAULT 0,
+            taxa_credito DECIMAL(5,2) DEFAULT 0,
+            ativo INTEGER DEFAULT 1,
+            criado_em TIMESTAMP DEFAULT NOW()
         );
         CREATE TABLE IF NOT EXISTS venda_itens (
             id SERIAL PRIMARY KEY,
@@ -296,6 +308,11 @@ def init_db():
 
         # Migração: adiciona coluna permissoes se não existir
         cur.execute("ALTER TABLE tenant_usuarios ADD COLUMN IF NOT EXISTS permissoes TEXT DEFAULT '';")
+        
+        # Migração: maquininhas e taxas em vendas
+        cur.execute("ALTER TABLE vendas ADD COLUMN IF NOT EXISTS maquininha_id INTEGER;")
+        cur.execute("ALTER TABLE vendas ADD COLUMN IF NOT EXISTS taxa_valor DECIMAL(10,2) DEFAULT 0;")
+        cur.execute("ALTER TABLE vendas ADD COLUMN IF NOT EXISTS valor_liquido DECIMAL(10,2) DEFAULT 0;")
         
         # Migração: garante que o login seja único globalmente
         try:
@@ -847,15 +864,43 @@ def api_vendas_list():
 @require_auth
 @require_module('pdv')
 def api_venda_create():
-    db=get_db(); d=request.json; numero=next_number('VND','vendas','numero'); tid=session['tenant_id']
-    cur=db.execute("INSERT INTO vendas(tenant_id,numero,cliente_id,cliente_nome,vendedor_id,vendedor_nome,subtotal,desconto,total,forma_pagamento,status,observacao) VALUES(?,?,?,?,?,?,?,?,?,?,?,?) RETURNING id",
-                   (tid,numero,d.get('cliente_id'),d.get('cliente_nome',''),d.get('vendedor_id'),d.get('vendedor_nome',''),d.get('subtotal',0),d.get('desconto',0),d.get('total',0),d.get('forma_pagamento','DINHEIRO'),d.get('status','CONCLUIDA'),d.get('observacao','')))
-    vid=cur.fetchone()['id']
-    for it in d.get('itens',[]):
+    db = get_db()
+    d = request.json
+    numero = next_number('VND', 'vendas', 'numero')
+    tid = session['tenant_id']
+    
+    forma_pgto = d.get('forma_pagamento', 'DINHEIRO')
+    total = float(d.get('total', 0))
+    maquininha_id = d.get('maquininha_id')
+    taxa_valor = 0
+    valor_liquido = total
+
+    if maquininha_id and 'CARTÃO' in forma_pgto.upper():
+        maq = db.execute("SELECT * FROM maquininhas WHERE tenant_id=? AND id=?", (tid, maquininha_id)).fetchone()
+        if maq:
+            taxa_perc = 0
+            if 'DÉBITO' in forma_pgto.upper():
+                taxa_perc = float(maq['taxa_debito'] or 0)
+            elif 'CRÉDITO' in forma_pgto.upper():
+                taxa_perc = float(maq['taxa_credito'] or 0)
+            
+            taxa_valor = round(total * (taxa_perc / 100), 2)
+            valor_liquido = total - taxa_valor
+
+    cur = db.execute(
+        "INSERT INTO vendas(tenant_id,numero,cliente_id,cliente_nome,vendedor_id,vendedor_nome,subtotal,desconto,total,forma_pagamento,status,observacao,maquininha_id,taxa_valor,valor_liquido) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) RETURNING id",
+        (tid, numero, d.get('cliente_id'), d.get('cliente_nome', ''), d.get('vendedor_id'), d.get('vendedor_nome', ''), 
+         d.get('subtotal', 0), d.get('desconto', 0), total, forma_pgto, d.get('status', 'CONCLUIDA'), d.get('observacao', ''),
+         maquininha_id, taxa_valor, valor_liquido)
+    )
+    vid = cur.fetchone()['id']
+    for it in d.get('itens', []):
         db.execute("INSERT INTO venda_itens(venda_id,produto_id,produto_nome,quantidade,preco_unitario,desconto,subtotal) VALUES(?,?,?,?,?,?,?)",
-                   (vid,it.get('produto_id'),it['produto_nome'],it['quantidade'],it['preco_unitario'],it.get('desconto',0),it['subtotal']))
-        if it.get('produto_id'): db.execute("UPDATE produtos SET estoque=estoque-? WHERE tenant_id=? AND id=?",(it['quantidade'],tid,it['produto_id']))
-    db.commit(); return jsonify({'ok':True,'numero':numero,'id':vid})
+                   (vid, it.get('produto_id'), it['produto_nome'], it['quantidade'], it['preco_unitario'], it.get('desconto', 0), it['subtotal']))
+        if it.get('produto_id'):
+            db.execute("UPDATE produtos SET estoque=estoque-? WHERE tenant_id=? AND id=?", (it['quantidade'], tid, it['produto_id']))
+    db.commit()
+    return jsonify({'ok': True, 'numero': numero, 'id': vid})
 
 @app.route('/api/vendas/<int:vid>', methods=['GET'])
 @require_auth
@@ -1295,6 +1340,51 @@ def rel_estoque():
 # ══════════════════════════════════════════════════════════════════════════
 # init_db() removido do top-level para evitar travar o boot do Gunicorn (causa de 504).
 # O banco deve ser inicializado manualmente via 'python app.py init' se necessrio.
+
+# ══════════════════════════════════════════════════════════════════════════
+# API – Maquininhas
+# ══════════════════════════════════════════════════════════════════════════
+@app.route('/api/maquininhas', methods=['GET'])
+@require_auth
+def api_maquininhas_list():
+    db = get_db()
+    tid = session['tenant_id']
+    return jsonify(rows_to_list(db.execute("SELECT * FROM maquininhas WHERE tenant_id=? AND ativo=1 ORDER BY nome", (tid,)).fetchall()))
+
+@app.route('/api/maquininhas', methods=['POST'])
+@require_auth
+@require_module('settings')
+def api_maquininha_create():
+    db = get_db()
+    d = request.json
+    tid = session['tenant_id']
+    db.execute("INSERT INTO maquininhas(tenant_id,nome,taxa_debito,taxa_credito) VALUES(?,?,?,?)",
+               (tid, d['nome'], d.get('taxa_debito', 0), d.get('taxa_credito', 0)))
+    db.commit()
+    return jsonify({'ok': True})
+
+@app.route('/api/maquininhas/<int:mid>', methods=['PUT'])
+@require_auth
+@require_module('settings')
+def api_maquininha_update(mid):
+    db = get_db()
+    d = request.json
+    tid = session['tenant_id']
+    db.execute("UPDATE maquininhas SET nome=?, taxa_debito=?, taxa_credito=? WHERE tenant_id=? AND id=?",
+               (d['nome'], d.get('taxa_debito', 0), d.get('taxa_credito', 0), tid, mid))
+    db.commit()
+    return jsonify({'ok': True})
+
+@app.route('/api/maquininhas/<int:mid>', methods=['DELETE'])
+@require_auth
+@require_module('settings')
+def api_maquininha_delete(mid):
+    db = get_db()
+    tid = session['tenant_id']
+    # Desativa em vez de deletar para manter histórico de vendas
+    db.execute("UPDATE maquininhas SET ativo=0 WHERE tenant_id=? AND id=?", (tid, mid))
+    db.commit()
+    return jsonify({'ok': True})
 
 if __name__ == '__main__':
     if len(sys.argv) > 1 and sys.argv[1] == 'init':
