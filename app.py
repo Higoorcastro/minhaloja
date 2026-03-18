@@ -955,9 +955,9 @@ def api_venda_create():
     tid = session['tenant_id']
     
     forma_pgto = d.get('forma_pagamento', 'DINHEIRO')
-    total = float(d.get('total', 0))
+    total = float(d.get('total') or 0)
     maquininha_id = d.get('maquininha_id')
-    num_parcelas = int(d.get('num_parcelas', 1))
+    num_parcelas = int(d.get('num_parcelas') or 1)
     taxa_valor = 0
     valor_liquido = total
 
@@ -981,13 +981,14 @@ def api_venda_create():
     cur = db.execute(
         "INSERT INTO vendas(tenant_id,numero,cliente_id,cliente_nome,vendedor_id,vendedor_nome,subtotal,desconto,total,forma_pagamento,status,observacao,maquininha_id,num_parcelas,taxa_valor,valor_liquido) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) RETURNING id",
         (tid, numero, d.get('cliente_id'), d.get('cliente_nome', ''), d.get('vendedor_id'), d.get('vendedor_nome', ''), 
-         d.get('subtotal', 0), d.get('desconto', 0), total, forma_pgto, d.get('status', 'CONCLUIDA'), d.get('observacao', ''),
+         float(d.get('subtotal') or 0), float(d.get('desconto') or 0), total, forma_pgto, d.get('status', 'CONCLUIDA'), d.get('observacao', ''),
          maquininha_id, num_parcelas, taxa_valor, valor_liquido)
     )
     vid = cur.fetchone()['id']
     for it in d.get('itens', []):
+        sub_it = float(it.get('subtotal') or 0)
         db.execute("INSERT INTO venda_itens(venda_id,produto_id,produto_nome,quantidade,preco_unitario,desconto,subtotal) VALUES(?,?,?,?,?,?,?)",
-                   (vid, it.get('produto_id'), it['produto_nome'], it['quantidade'], it['preco_unitario'], it.get('desconto', 0), it['subtotal']))
+                   (vid, it.get('produto_id'), it['produto_nome'], it['quantidade'], it['preco_unitario'], float(it.get('desconto') or 0), sub_it))
         if it.get('produto_id'):
             db.execute("UPDATE produtos SET estoque=estoque-? WHERE tenant_id=? AND id=?", (it['quantidade'], tid, it['produto_id']))
     # Creditar valor na conta Caixa

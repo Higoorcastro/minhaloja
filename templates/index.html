@@ -2766,13 +2766,13 @@
     function addToCart(id) {
       const p = allProdutos.find(x => x.id === id); if (!p) return;
       const ex = cart.find(x => x.produto_id === id);
-      if (ex) { ex.quantidade++; ex.subtotal = ex.quantidade * ex.preco_unitario; }
-      else { cart.push({ produto_id: id, produto_nome: p.nome, quantidade: 1, preco_unitario: p.preco_venda, subtotal: p.preco_venda, desconto: 0 }); }
+      if (ex) { ex.quantidade++; ex.subtotal = (ex.quantidade * (parseFloat(ex.preco_unitario) || 0)) || 0; }
+      else { cart.push({ produto_id: id, produto_nome: p.nome, quantidade: 1, preco_unitario: (parseFloat(p.preco_venda) || 0), subtotal: (parseFloat(p.preco_venda) || 0), desconto: 0 }); }
       renderCart();
     }
     function removeFromCart(id) { cart = cart.filter(x => x.produto_id !== id); renderCart(); }
-    function updateQty(id, delta) { const it = cart.find(x => x.produto_id === id); if (!it) return; it.quantidade = Math.max(0.01, (parseFloat(it.quantidade) || 1) + delta); it.subtotal = it.quantidade * it.preco_unitario; renderCart(); }
-    function setQty(id, val) { const it = cart.find(x => x.produto_id === id); if (!it) return; it.quantidade = Math.max(0.01, parseFloat(val) || 1); it.subtotal = it.quantidade * it.preco_unitario; updateTotals(); }
+    function updateQty(id, delta) { const it = cart.find(x => x.produto_id === id); if (!it) return; it.quantidade = Math.max(0.01, (parseFloat(it.quantidade) || 1) + delta); it.subtotal = (it.quantidade * (parseFloat(it.preco_unitario) || 0)) || 0; renderCart(); }
+    function setQty(id, val) { const it = cart.find(x => x.produto_id === id); if (!it) return; it.quantidade = Math.max(0.01, parseFloat(val) || 1); it.subtotal = (it.quantidade * (parseFloat(it.preco_unitario) || 0)) || 0; updateTotals(); }
 
     function renderCart() {
       const el = document.getElementById('cart'); if (!el) return;
@@ -2795,7 +2795,7 @@
     }
 
     function updateTotals() {
-      const sub = cart.reduce((a, b) => a + b.subtotal, 0);
+      const sub = cart.reduce((a, b) => a + (parseFloat(b.subtotal) || 0), 0);
       const desc = parseFloat(document.getElementById('cart-desconto')?.value || 0) || 0;
       const sv = document.getElementById('sub-val'); const tv = document.getElementById('total-val');
       if (sv) sv.textContent = fmt(sub); if (tv) tv.textContent = fmt(Math.max(0, sub - desc));
@@ -2867,7 +2867,7 @@
     }
 
     async function finalizarVenda() {
-      const sub = cart.reduce((a, b) => a + b.subtotal, 0);
+      const sub = cart.reduce((a, b) => a + (parseFloat(b.subtotal) || 0), 0);
       const desc = parseFloat(document.getElementById('cart-desconto')?.value || 0) || 0;
       const cliSel = document.getElementById('co-cli');
       const cliId = cliSel?.value || null;
