@@ -2178,7 +2178,7 @@
     };
     const maskMoney = v => {
       let n = parseMoney(v);
-      return n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+      return n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     };
     const today = () => new Date().toISOString().split('T')[0];
     const firstDay = () => { const d = new Date(); d.setDate(1); return d.toISOString().split('T')[0]; };
@@ -2714,7 +2714,7 @@
       <div id="cart"></div>
       <div id="cart-total">
         <div class="total-row"><span>Subtotal</span><span id="sub-val" class="mono">R$ 0,00</span></div>
-        <div class="total-row"><span>Desconto (R$)</span><input type="number" id="cart-desconto" value="0" min="0" step="0.01" onchange="updateTotals()" style="width:80px;text-align:right;padding:3px 6px"></div>
+        <div class="total-row"><span>Desconto (R$)</span><input type="text" id="cart-desconto" value="0,00" oninput="this.value=maskMoney(this.value);updateTotals()" style="width:100px;text-align:right;padding:3px 6px"></div>
         <div class="total-row final"><span>TOTAL</span><span id="total-val">R$ 0,00</span></div>
         <div id="cart-actions"><button class="btn" onclick="showCheckout()">💳 Finalizar</button></div>
       </div>
@@ -2796,7 +2796,7 @@
 
     function updateTotals() {
       const sub = cart.reduce((a, b) => a + (parseFloat(b.subtotal) || 0), 0);
-      const desc = parseFloat(document.getElementById('cart-desconto')?.value || 0) || 0;
+      const desc = parseMoney(document.getElementById('cart-desconto')?.value || '0');
       const sv = document.getElementById('sub-val'); const tv = document.getElementById('total-val');
       if (sv) sv.textContent = fmt(sub); if (tv) tv.textContent = fmt(Math.max(0, sub - desc));
     }
@@ -2804,7 +2804,7 @@
     function showCheckout() {
       if (!cart.length) { notify('Carrinho vazio!', 'error'); return; }
       const sub = cart.reduce((a, b) => a + b.subtotal, 0);
-      const desc = parseFloat(document.getElementById('cart-desconto')?.value || 0) || 0;
+      const desc = parseMoney(document.getElementById('cart-desconto')?.value || '0');
       const total = Math.max(0, sub - desc);
       const opts = allClientes.map(c => `<option value="${c.id}" data-nome="${c.nome}">${c.nome}</option>`).join('');
       const vendOpts = allVendedores.map(v => `<option value="${v.id}" data-nome="${v.nome}">${v.nome}</option>`).join('');
@@ -2868,7 +2868,7 @@
 
     async function finalizarVenda() {
       const sub = cart.reduce((a, b) => a + (parseFloat(b.subtotal) || 0), 0);
-      const desc = parseFloat(document.getElementById('cart-desconto')?.value || 0) || 0;
+      const desc = parseMoney(document.getElementById('cart-desconto')?.value || '0');
       const cliSel = document.getElementById('co-cli');
       const cliId = cliSel?.value || null;
       const cliNome = cliId ? cliSel.options[cliSel.selectedIndex].dataset.nome : 'Consumidor Final';
@@ -2900,7 +2900,7 @@
         allProdutos = await api('/api/produtos') || [];
         renderCart();
         renderProdutosGrid();
-        document.getElementById('cart-desconto').value = 0;
+        document.getElementById('cart-desconto').value = '0,00';
 
         if (confirm('Deseja imprimir o cupom de venda?')) {
           gerarImpressaoVenda(vid);
@@ -3237,8 +3237,8 @@
 
     function buildOSForm(o) {
       const cliOpts = allClientes.map(c => `<option value="${c.id}" ${o && o.cliente_id == c.id ? 'selected' : ''}>${c.nome}</option>`).join('');
-      const vsVal = o ? fmt(o.valor_servico) : 'R$ 0,00';
-      const descVal = o ? fmt(o.desconto) : 'R$ 0,00';
+      const vsVal = o ? fmtN(o.valor_servico) : '0,00';
+      const descVal = o ? fmtN(o.desconto) : '0,00';
       const ck = JSON.parse(o?.checklist || '{}');
       const items = ['Aparelho Liga', 'Tela Quebrada', 'Conector Carga', 'Bateria Carga', 'Câmeras', 'Microfone', 'Auto Falante', 'Botões', 'Carcaça Boa', 'Gaveta de Chip'];
 
@@ -3536,8 +3536,8 @@
     <div class="form-group"><label>Categoria</label><select id="pf-catid"><option value="">Sem categoria</option>${catOpts}</select></div>
     <div class="form-group"><label>Unidade</label><select id="pf-un">${['UN', 'KG', 'G', 'L', 'ML', 'MT', 'CM', 'CX', 'PC'].map(u => `<option ${p?.unidade === u ? 'selected' : ''}>${u}</option>`).join('')}</select></div>
     <div class="form-group"><label>Estoque Mínimo</label><input type="number" id="pf-emin" value="${p?.estoque_minimo || 0}" min="0"></div>
-    <div class="form-group"><label>Preço Custo (R$)</label><input type="number" id="pf-pcusto" value="${p?.preco_custo || 0}" min="0" step="0.01" onchange="calcMargem()"></div>
-    <div class="form-group"><label>Preço Venda (R$)</label><input type="number" id="pf-pvenda" value="${p?.preco_venda || 0}" min="0" step="0.01" onchange="calcMargem()"></div>
+    <div class="form-group"><label>Preço Custo (R$)</label><input type="text" id="pf-pcusto" value="${maskMoney(p?.preco_custo || '0')}" oninput="this.value=maskMoney(this.value);calcMargem()"></div>
+    <div class="form-group"><label>Preço Venda (R$)</label><input type="text" id="pf-pvenda" value="${maskMoney(p?.preco_venda || '0')}" oninput="this.value=maskMoney(this.value);calcMargem()"></div>
     <div class="form-group"><label>Margem</label><input id="pf-margem" readonly style="color:var(--green)"></div>
     <div class="form-group"><label>Estoque Atual</label><input type="number" id="pf-estq" value="${p?.estoque || 0}" min="0"></div>
   </div>`;
@@ -3560,7 +3560,7 @@
     async function novoProduto() { allCategorias = await api('/api/categorias') || []; openModal('Novo Produto', buildProdutoForm(null), `<button class="btn" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="salvarProduto()">Salvar</button>`, 'modal-lg'); setTimeout(calcMargem, 50); }
     async function editarProduto(id) { allCategorias = await api('/api/categorias') || []; const p = (await api('/api/produtos'))?.find(x => x.id === id); openModal('Editar Produto', buildProdutoForm(p), `<button class="btn" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="salvarProduto(${id})">Salvar</button>`, 'modal-lg'); setTimeout(calcMargem, 50); }
 
-    function getProdutoData() { return { codigo: document.getElementById('pf-cod')?.value || null, nome: document.getElementById('pf-nome')?.value || '', descricao: document.getElementById('pf-desc')?.value || '', categoria_id: document.getElementById('pf-catid')?.value || null, unidade: document.getElementById('pf-un')?.value || 'UN', estoque_minimo: parseFloat(document.getElementById('pf-emin')?.value || 0) || 0, preco_custo: parseFloat(document.getElementById('pf-pcusto')?.value || 0) || 0, preco_venda: parseFloat(document.getElementById('pf-pvenda')?.value || 0) || 0, estoque: parseFloat(document.getElementById('pf-estq')?.value || 0) || 0 }; }
+    function getProdutoData() { return { codigo: document.getElementById('pf-cod')?.value || null, nome: document.getElementById('pf-nome')?.value || '', descricao: document.getElementById('pf-desc')?.value || '', categoria_id: document.getElementById('pf-catid')?.value || null, unidade: document.getElementById('pf-un')?.value || 'UN', estoque_minimo: parseFloat(document.getElementById('pf-emin')?.value || 0) || 0, preco_custo: parseMoney(document.getElementById('pf-pcusto')?.value || '0'), preco_venda: parseMoney(document.getElementById('pf-pvenda')?.value || '0'), estoque: parseFloat(document.getElementById('pf-estq')?.value || 0) || 0 }; }
 
     async function salvarProduto(id = null) { const d = getProdutoData(); if (!d.nome) { notify('Nome é obrigatório', 'error'); return; } const r = id ? await api(`/api/produtos/${id}`, 'PUT', d) : await api('/api/produtos', 'POST', d); if (r?.ok) { notify(id ? 'Produto atualizado!' : 'Produto criado!', 'success'); closeModal(); allProdutos = await api('/api/produtos') || []; loadProdutos(); } else notify('Erro', 'error'); }
     async function deletarProduto(id) { if (!confirm('Inativar produto?')) return; await api(`/api/produtos/${id}`, 'DELETE'); notify('Produto removido', 'info'); allProdutos = await api('/api/produtos') || []; loadProdutos(); }
@@ -3739,7 +3739,7 @@
   <div class="form-grid">
     <div class="form-group full"><label>Descrição *</label><input id="df-desc"></div>
     <div class="form-group"><label>Categoria</label><select id="df-cat">${['GERAL', 'ALUGUEL', 'ENERGIA', 'INTERNET', 'AGUA', 'MATERIAL', 'PESSOAL', 'IMPOSTO', 'FRETE', 'MARKETING', 'OUTRO'].map(c => `<option>${c}</option>`).join('')}</select></div>
-    <div class="form-group"><label>Valor *</label><input type="number" id="df-val" min="0.01" step="0.01"></div>
+    <div class="form-group"><label>Valor *</label><input type="text" id="df-val" value="0,00" oninput="this.value=maskMoney(this.value)"></div>
     <div class="form-group"><label>Data *</label><input type="date" id="df-data" value="${today()}"></div>
     <div class="form-group"><label>💳 Sair da Conta *</label><select id="df-conta">${contaOpts}</select></div>
     <div class="form-group"><label>Forma de Pagamento</label><select id="df-pgto"><option>DINHEIRO</option><option>PIX</option><option>CARTÃO DÉBITO</option><option>CARTÃO CRÉDITO</option><option>BOLETO</option></select></div>
@@ -3752,7 +3752,7 @@
       const d = {
         descricao: document.getElementById('df-desc')?.value || '',
         categoria: document.getElementById('df-cat')?.value || 'GERAL',
-        valor: parseFloat(document.getElementById('df-val')?.value || 0) || 0,
+        valor: parseMoney(document.getElementById('df-val')?.value || '0'),
         data: document.getElementById('df-data')?.value || today(),
         forma_pagamento: document.getElementById('df-pgto')?.value || 'DINHEIRO',
         observacao: document.getElementById('df-obs')?.value || '',
@@ -3794,9 +3794,9 @@
       window._cpItens = []; addCompraItem();
     }
 
-    function addCompraItem() { const opts = allProdutos.map(p => `<option value="${p.id}" data-nome="${p.nome}">${p.nome}</option>`).join(''); const idx = (window._cpItens || []).length; const el = document.createElement('div'); el.id = `cpi-${idx}`; el.style.cssText = 'display:grid;grid-template-columns:2fr 1fr 1fr 32px;gap:8px;margin-bottom:8px;align-items:end'; el.innerHTML = `<select id="cpi-prod-${idx}" onchange="calcCpTotal()"><option value="">Selecione...</option>${opts}</select><input type="number" id="cpi-qtd-${idx}" value="1" min="0.01" step="0.01" placeholder="Qtd" onchange="calcCpTotal()"><input type="number" id="cpi-preco-${idx}" value="0" min="0" step="0.01" placeholder="Preço" onchange="calcCpTotal()"><button class="btn btn-sm btn-danger" onclick="rmCpItem(${idx})" style="padding:0;width:32px;height:32px">✕</button>`; document.getElementById('cp-itens').appendChild(el); if (!window._cpItens) window._cpItens = []; window._cpItens.push({ idx }); }
+    function addCompraItem() { const opts = allProdutos.map(p => `<option value="${p.id}" data-nome="${p.nome}">${p.nome}</option>`).join(''); const idx = (window._cpItens || []).length; const el = document.createElement('div'); el.id = `cpi-${idx}`; el.style.cssText = 'display:grid;grid-template-columns:2fr 1fr 1fr 32px;gap:8px;margin-bottom:8px;align-items:end'; el.innerHTML = `<select id="cpi-prod-${idx}" onchange="calcCpTotal()"><option value="">Selecione...</option>${opts}</select><input type="number" id="cpi-qtd-${idx}" value="1" min="0.01" step="0.01" placeholder="Qtd" onchange="calcCpTotal()"><input type="text" id="cpi-preco-${idx}" value="0,00" oninput="this.value=maskMoney(this.value);calcCpTotal()"><button class="btn btn-sm btn-danger" onclick="rmCpItem(${idx})" style="padding:0;width:32px;height:32px">✕</button>`; document.getElementById('cp-itens').appendChild(el); if (!window._cpItens) window._cpItens = []; window._cpItens.push({ idx }); }
     function rmCpItem(idx) { document.getElementById(`cpi-${idx}`)?.remove(); calcCpTotal(); }
-    function calcCpTotal() { let t = 0; document.querySelectorAll('[id^="cpi-qtd-"]').forEach(el => { const i = el.id.split('-').pop(); const q = parseFloat(el.value || 0) || 0; const p = parseFloat(document.getElementById(`cpi-preco-${i}`)?.value || 0) || 0; t += q * p; }); const el = document.getElementById('cp-total'); if (el) el.textContent = fmt(t); }
+    function calcCpTotal() { let t = 0; document.querySelectorAll('[id^="cpi-qtd-"]').forEach(el => { const i = el.id.split('-').pop(); const q = parseFloat(el.value || 0) || 0; const p = parseMoney(document.getElementById(`cpi-preco-${i}`)?.value || '0'); t += q * p; }); const el = document.getElementById('cp-total'); if (el) el.textContent = fmt(t); }
 
     async function salvarCompra() {
       const itens = [];
@@ -3805,7 +3805,7 @@
         const pid = sel.value; if (!pid) return;
         const nome = sel.options[sel.selectedIndex]?.dataset?.nome || '';
         const qtd = parseFloat(document.getElementById(`cpi-qtd-${i}`)?.value || 0) || 0;
-        const preco = parseFloat(document.getElementById(`cpi-preco-${i}`)?.value || 0) || 0;
+        const preco = parseMoney(document.getElementById(`cpi-preco-${i}`)?.value || '0');
         if (qtd > 0) itens.push({ produto_id: pid, produto_nome: nome, quantidade: qtd, preco_unitario: preco, subtotal: qtd * preco });
       });
       if (!itens.length) { notify('Adicione pelo menos um item', 'error'); return; }
@@ -4144,14 +4144,14 @@
       openModal('Nova Conta Bancária', `
         <div class="form-grid">
           <div class="form-group full"><label>Nome da Conta *</label><input id="nc-nome" placeholder="Ex: Banco Itaú, Nubank..."></div>
-          <div class="form-group full"><label>Saldo Inicial (R$)</label><input type="number" id="nc-saldo" value="0" min="0" step="0.01" placeholder="0.00"></div>
+          <div class="form-group full"><label>Saldo Inicial (R$)</label><input type="text" id="nc-saldo" value="0,00" oninput="this.value=maskMoney(this.value)"></div>
         </div>
       `, `<button class="btn" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="salvarNovaConta()">Criar Conta</button>`, 'modal-sm');
     }
 
     async function salvarNovaConta() {
       const nome = document.getElementById('nc-nome')?.value?.trim();
-      const saldo_inicial = parseFloat(document.getElementById('nc-saldo')?.value || 0) || 0;
+      const saldo_inicial = parseMoney(document.getElementById('nc-saldo')?.value || '0');
       if (!nome) { notify('Nome é obrigatório', 'error'); return; }
       const r = await api('/api/contas', 'POST', { nome, saldo_inicial });
       if (r?.ok) { notify('Conta criada!', 'success'); closeModal(); loadContasView(); }
@@ -4186,7 +4186,7 @@
         <div class="form-grid">
           <div class="form-group"><label>Da Conta (Origem) *</label><select id="tr-orig">${opts}</select></div>
           <div class="form-group"><label>Para Conta (Destino) *</label><select id="tr-dest">${opts}</select></div>
-          <div class="form-group"><label>Valor *</label><input type="number" id="tr-val" min="0.01" step="0.01" placeholder="0.00"></div>
+          <div class="form-group"><label>Valor *</label><input type="text" id="tr-val" value="0,00" oninput="this.value=maskMoney(this.value)"></div>
           <div class="form-group full"><label>Descrição</label><input id="tr-desc" placeholder="Ex: Fechamento do mês"></div>
         </div>
       `, `<button class="btn" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="confirmarTransferencia()">Transferir</button>`, 'modal-md');
@@ -4195,7 +4195,7 @@
     async function confirmarTransferencia() {
       const origem = document.getElementById('tr-orig')?.value;
       const destino = document.getElementById('tr-dest')?.value;
-      const valor = parseFloat(document.getElementById('tr-val')?.value || 0) || 0;
+      const valor = parseMoney(document.getElementById('tr-val')?.value || '0');
       const descricao = document.getElementById('tr-desc')?.value || 'Transferência entre contas';
       if (!valor || valor <= 0) { notify('Informe um valor maior que zero', 'error'); return; }
       const r = await api('/api/contas/transferir', 'POST', { conta_origem_id: parseInt(origem), conta_destino_id: parseInt(destino), valor, descricao });
@@ -4410,7 +4410,7 @@
         </div>
         <div class="form-group">
           <label>Valor Total (R$)</label>
-          <input type="text" id="nova-conta-valor" placeholder="0,00" oninput="this.value=maskMoney(this.value)">
+          <input type="text" id="nova-conta-valor" value="0,00" oninput="this.value=maskMoney(this.value)">
         </div>
         <div class="form-group">
           <label>Data de Vencimento</label>
