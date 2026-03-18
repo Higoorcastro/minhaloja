@@ -2348,6 +2348,7 @@
       if (_navigating) return;
       _navigating = true;
 
+      // 1. Immediate UI Feedback (Sidebar & Title)
       currentPage = page;
       const navItems = document.querySelectorAll('.nav-item');
       let activeEl = null;
@@ -2358,7 +2359,6 @@
         if (isActive) activeEl = el;
       });
 
-      // Update Nav Rail position
       const rail = document.getElementById('nav-rail');
       if (rail && activeEl) {
         rail.style.display = 'block';
@@ -2377,11 +2377,14 @@
       const content = document.getElementById('content');
       _showProgress(30);
 
+      // 2. Clear content after quick exit animation to avoid "freeze"
       content.classList.add('page-exiting');
-      await new Promise(r => setTimeout(r, 160));
+      await new Promise(r => setTimeout(r, 120)); // Quick fade out
       content.classList.remove('page-exiting');
-
-      _showProgress(65);
+      
+      // Crucial: Clear content and show loader BEFORE awaiting the renderer
+      content.innerHTML = '<div class="empty"><div class="empty-icon">⏳</div><p>Carregando...</p></div>';
+      _showProgress(60);
 
       const renderer = {
         dashboard: renderDashboard, pdv: renderPDV, vendas: renderVendas, os: renderOS,
@@ -2395,16 +2398,14 @@
         if (renderer) await renderer();
       } catch (err) {
         console.error("Renderer error:", err);
-        notify("Erro ao carregar página", "error");
+        content.innerHTML = '<div class="empty"><div class="empty-icon">⚠️</div><p>Erro ao carregar módulo.</p></div>';
       } finally {
         content.classList.add('page-entering');
         content.addEventListener('animationend', () => content.classList.remove('page-entering'), { once: true });
 
         _showProgress(100);
-        _hideProgress();
+        setTimeout(_hideProgress, 300);
         _navigating = false;
-        
-        // Auto-close mobile menu if open (safe for desktop too)
         closeMobileMenu();
       }
     }
@@ -3009,15 +3010,19 @@
     }
 
     async function renderOSKanban() {
+      const tbl = document.getElementById('os-tbl');
+      if (tbl) tbl.innerHTML = '<div class="empty"><div class="empty-icon">⏳</div><p>Carregando Kanban...</p></div>';
+      
       const data = await api('/api/os'); if (!data) return;
       const grupos = ['ABERTA', 'EM_ANDAMENTO', 'AGUARDANDO', 'PRONTO', 'CONCLUIDA'];
       const labels = { ABERTA: 'Aberta', EM_ANDAMENTO: 'Em Andamento', AGUARDANDO: 'Aguardando', PRONTO: 'Pronto', CONCLUIDA: 'Concluída' };
-      const tbl = document.getElementById('os-tbl');
-      tbl.innerHTML = `<div class="os-kanban" style="padding:14px">${grupos.map(g => `
-    <div class="kanban-col"><div class="kanban-header"><span>${labels[g]}</span><span class="badge badge-blue">${data.filter(o => o.status === g).length}</span></div>
-    <div class="kanban-items">${data.filter(o => o.status === g).map(o => `
-      <div class="os-mini" onclick="verOS(${o.id})"><div class="om-num">${o.numero}</div><div class="om-cli">${o.cliente_nome || '-'}</div><div class="om-equip">${o.equipamento || '-'}</div></div>
-    `).join('') || '<div style="font-size:12px;color:var(--text3);padding:6px">Vazio</div>'}</div></div>`).join('')}</div>`;
+      if (tbl) {
+        tbl.innerHTML = `<div class="os-kanban" style="padding:14px">${grupos.map(g => `
+      <div class="kanban-col"><div class="kanban-header"><span>${labels[g]}</span><span class="badge badge-blue">${data.filter(o => o.status === g).length}</span></div>
+      <div class="kanban-items">${data.filter(o => o.status === g).map(o => `
+        <div class="os-mini" onclick="verOS(${o.id})"><div class="om-num">${o.numero}</div><div class="om-cli">${o.cliente_nome || '-'}</div><div class="om-equip">${o.equipamento || '-'}</div></div>
+      `).join('') || '<div style="font-size:12px;color:var(--text3);padding:6px">Vazio</div>'}</div></div>`).join('')}</div>`;
+      }
     }
 
     async function novaOS() {
@@ -3411,17 +3416,29 @@
     // PRODUTOS
     // ══════════════════════════════════════════════════════════════
     async function renderProdutos() {
-      allCategorias = await api('/api/categorias') || [];
       document.getElementById('topbar-actions').innerHTML = `<button class="topbar-btn primary" onclick="novoProduto()">+ Novo Produto</button>`;
-      const catOpts = allCategorias.map(c => `<option value="${c.id}">${c.nome}</option>`).join('');
+      
+      // Render structure immediately
       document.getElementById('content').innerHTML = `
-    <div class="filters">
-      <div class="filter-group"><label>Buscar</label><input type="text" id="pf-q" placeholder="Nome ou código..."></div>
-      <div class="filter-group"><label>Categoria</label><select id="pf-cat"><option value="">Todas</option>${catOpts}</select></div>
-      <div class="filter-group" style="justify-content:flex-end;padding-top:8px"><label style="display:flex;gap:6px;align-items:center;cursor:pointer"><input type="checkbox" id="pf-baixo"> Estoque Baixo</label></div>
-      <div style="display:flex;align-items:flex-end"><button class="btn btn-primary" onclick="loadProdutos()">🔍 Filtrar</button></div>
-    </div>
-    <div class="card"><div class="tbl-wrap" id="prod-tbl"><div class="empty"><div class="empty-icon">⏳</div><p>Carregando...</p></div></div></div>`;
+        <div class="filters">
+          <div class="filter-group"><label>Buscar</label><input type="text" id="pf-q" placeholder="Nome ou código..."></div>
+          <div class="filter-group"><label>Categoria</label><select id="pf-cat"><option value="">Carregando...</option></select></div>
+          <div class="filter-group" style="justify-content:flex-end;padding-top:8px">
+            <label style="display:flex;gap:6px;align-items:center;cursor:pointer"><input type="checkbox" id="pf-baixo"> Estoque Baixo</label>
+          </div>
+          <div style="display:flex;align-items:flex-end"><button class="btn btn-primary" onclick="loadProdutos()">🔍 Filtrar</button></div>
+        </div>
+        <div class="card"><div class="tbl-wrap" id="prod-tbl"><div class="empty"><div class="empty-icon">⏳</div><p>Carregando produtos...</p></div></div></div>`;
+      
+      // Load data in background
+      api('/api/categorias').then(cats => {
+        allCategorias = cats || [];
+        const sel = document.getElementById('pf-cat');
+        if (sel) {
+          sel.innerHTML = '<option value="">Todas</option>' + allCategorias.map(c => `<option value="${c.id}">${c.nome}</option>`).join('');
+        }
+      });
+      
       loadProdutos();
     }
 
@@ -3730,21 +3747,28 @@
     // RELATÓRIOS
     // ══════════════════════════════════════════════════════════════
     async function renderRelatorios() {
-      if (!allVendedores || !allVendedores.length) allVendedores = await api('/api/vendedores') || [];
-      const vendOpts = allVendedores.map(v => `<option value="${v.id}">${v.nome}</option>`).join('');
       document.getElementById('content').innerHTML = `
-    <div style="display:flex;gap:10px;margin-bottom:16px">
-      <button class="btn btn-primary" onclick="loadRelVendas()">📊 Vendas</button>
-      <button class="btn" onclick="loadRelFinanceiro()">💰 Financeiro</button>
-      <button class="btn" onclick="loadRelEstoque()">📦 Estoque</button>
-    </div>
-    <div class="filters" style="display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;margin-bottom:16px">
-      <div class="filter-group"><label>Data Início</label><input type="date" id="rf-di" value="${firstDay()}"></div>
-      <div class="filter-group"><label>Data Fim</label><input type="date" id="rf-df" value="${today()}"></div>
-      <div class="filter-group"><label>Agrupar por</label><select id="rf-agrup" onchange="loadRelVendas()"><option value="dia">Dia</option><option value="semana">Semana</option><option value="mes">Mês</option></select></div>
-      <div class="filter-group" id="filter-vendedor"><label>Vendedor</label><select id="rf-vend" onchange="loadRelVendas()"><option value="">Todos</option>${vendOpts}</select></div>
-    </div>
-    <div id="rel-content"><div class="empty"><div class="empty-icon">📊</div><p>Selecione um relatório</p></div></div>`;
+        <div style="display:flex;gap:10px;margin-bottom:16px">
+          <button class="btn btn-primary" onclick="loadRelVendas()">📊 Vendas</button>
+          <button class="btn" onclick="loadRelFinanceiro()">💰 Financeiro</button>
+          <button class="btn" onclick="loadRelEstoque()">📦 Estoque</button>
+        </div>
+        <div class="filters" style="display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;margin-bottom:16px">
+          <div class="filter-group"><label>Data Início</label><input type="date" id="rf-di" value="${firstDay()}"></div>
+          <div class="filter-group"><label>Data Fim</label><input type="date" id="rf-df" value="${today()}"></div>
+          <div class="filter-group"><label>Agrupar por</label><select id="rf-agrup" onchange="loadRelVendas()"><option value="dia">Dia</option><option value="semana">Semana</option><option value="mes">Mês</option></select></div>
+          <div class="filter-group" id="filter-vendedor"><label>Vendedor</label><select id="rf-vend" onchange="loadRelVendas()"><option value="">Carregando...</option></select></div>
+        </div>
+        <div id="rel-content"><div class="empty"><div class="empty-icon">📊</div><p>Selecione um relatório</p></div></div>`;
+      
+      api('/api/vendedores').then(vends => {
+        allVendedores = vends || [];
+        const sel = document.getElementById('rf-vend');
+        if (sel) {
+          sel.innerHTML = '<option value="">Todos</option>' + allVendedores.map(v => `<option value="${v.id}">${v.nome}</option>`).join('');
+        }
+      });
+
       loadRelVendas();
     }
 
