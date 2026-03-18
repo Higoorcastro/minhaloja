@@ -3486,28 +3486,51 @@
       container.innerHTML = statsHtml + tableHtml;
     }
 
-    function novaDespesa() {
+    async function novaDespesa() {
+      const contas = await api('/api/contas') || [];
+      const contaOpts = contas.map(c => `<option value="${c.id}">${c.nome} — ${fmt(c.saldo)}</option>`).join('');
       openModal('Nova Despesa', `
   <div class="form-grid">
     <div class="form-group full"><label>Descrição *</label><input id="df-desc"></div>
     <div class="form-group"><label>Categoria</label><select id="df-cat">${['GERAL', 'ALUGUEL', 'ENERGIA', 'INTERNET', 'AGUA', 'MATERIAL', 'PESSOAL', 'IMPOSTO', 'FRETE', 'MARKETING', 'OUTRO'].map(c => `<option>${c}</option>`).join('')}</select></div>
     <div class="form-group"><label>Valor *</label><input type="number" id="df-val" min="0.01" step="0.01"></div>
     <div class="form-group"><label>Data *</label><input type="date" id="df-data" value="${today()}"></div>
-    <div class="form-group"><label>Pagamento</label><select id="df-pgto"><option>DINHEIRO</option><option>PIX</option><option>CARTÃO DÉBITO</option><option>CARTÃO CRÉDITO</option><option>BOLETO</option></select></div>
+    <div class="form-group"><label>💳 Sair da Conta *</label><select id="df-conta">${contaOpts}</select></div>
+    <div class="form-group"><label>Forma de Pagamento</label><select id="df-pgto"><option>DINHEIRO</option><option>PIX</option><option>CARTÃO DÉBITO</option><option>CARTÃO CRÉDITO</option><option>BOLETO</option></select></div>
     <div class="form-group full"><label>Observação</label><input id="df-obs"></div>
   </div>`, `<button class="btn" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="salvarDespesa()">Salvar</button>`, 'modal-md');
     }
 
-    async function salvarDespesa() { const d = { descricao: document.getElementById('df-desc')?.value || '', categoria: document.getElementById('df-cat')?.value || 'GERAL', valor: parseFloat(document.getElementById('df-val')?.value || 0) || 0, data: document.getElementById('df-data')?.value || today(), forma_pagamento: document.getElementById('df-pgto')?.value || 'DINHEIRO', observacao: document.getElementById('df-obs')?.value || '' }; if (!d.descricao || !d.valor) { notify('Preencha descrição e valor', 'error'); return; } const r = await api('/api/despesas', 'POST', d); if (r?.ok) { notify('Despesa registrada!', 'success'); closeModal(); loadFinanceiro(); } else notify('Erro', 'error'); }
+    async function salvarDespesa() {
+      const conta_id = document.getElementById('df-conta')?.value;
+      const d = {
+        descricao: document.getElementById('df-desc')?.value || '',
+        categoria: document.getElementById('df-cat')?.value || 'GERAL',
+        valor: parseFloat(document.getElementById('df-val')?.value || 0) || 0,
+        data: document.getElementById('df-data')?.value || today(),
+        forma_pagamento: document.getElementById('df-pgto')?.value || 'DINHEIRO',
+        observacao: document.getElementById('df-obs')?.value || '',
+        conta_id: conta_id ? parseInt(conta_id) : null
+      };
+      if (!d.descricao || !d.valor) { notify('Preencha descrição e valor', 'error'); return; }
+      if (!d.conta_id) { notify('Selecione a conta de saída', 'error'); return; }
+      const r = await api('/api/despesas', 'POST', d);
+      if (r?.ok) { notify('Despesa registrada!', 'success'); closeModal(); loadFinanceiro(); }
+      else notify(r?.error || 'Erro ao registrar despesa', 'error');
+    }
     async function deletarDespesa(id) { if (!confirm('Excluir despesa?')) return; await api(`/api/despesas/${id}`, 'DELETE'); notify('Excluída', 'info'); loadFinanceiro(); }
 
-    function novaCompra() {
+    async function novaCompra() {
+      const contas = await api('/api/contas') || [];
+      window._cpContas = contas;
+      const contaOpts = contas.map(c => `<option value="${c.id}">${c.nome} — ${fmt(c.saldo)}</option>`).join('');
       api('/api/produtos').then(ps => { allProdutos = ps || []; });
       openModal('Lançar Compra / Entrada de Estoque', `
     <div class="form-grid cols3">
       <div class="form-group"><label>Data *</label><input type="date" id="cp-data" value="${today()}"></div>
       <div class="form-group"><label>Fornecedor</label><input id="cp-forn"></div>
       <div class="form-group"><label>Nº Nota Fiscal</label><input id="cp-nf"></div>
+      <div class="form-group full"><label>💳 Sair da Conta *</label><select id="cp-conta">${contaOpts}</select></div>
       <div class="form-group full"><label>Observação</label><input id="cp-obs"></div>
     </div>
     <div class="divider"></div>
@@ -3524,10 +3547,29 @@
     function calcCpTotal() { let t = 0; document.querySelectorAll('[id^="cpi-qtd-"]').forEach(el => { const i = el.id.split('-').pop(); const q = parseFloat(el.value || 0) || 0; const p = parseFloat(document.getElementById(`cpi-preco-${i}`)?.value || 0) || 0; t += q * p; }); const el = document.getElementById('cp-total'); if (el) el.textContent = fmt(t); }
 
     async function salvarCompra() {
-      const itens = []; document.querySelectorAll('[id^="cpi-prod-"]').forEach(sel => { const i = sel.id.split('-').pop(); const pid = sel.value; if (!pid) return; const nome = sel.options[sel.selectedIndex]?.dataset?.nome || ''; const qtd = parseFloat(document.getElementById(`cpi-qtd-${i}`)?.value || 0) || 0; const preco = parseFloat(document.getElementById(`cpi-preco-${i}`)?.value || 0) || 0; if (qtd > 0) itens.push({ produto_id: pid, produto_nome: nome, quantidade: qtd, preco_unitario: preco, subtotal: qtd * preco }); });
+      const itens = [];
+      document.querySelectorAll('[id^="cpi-prod-"]').forEach(sel => {
+        const i = sel.id.split('-').pop();
+        const pid = sel.value; if (!pid) return;
+        const nome = sel.options[sel.selectedIndex]?.dataset?.nome || '';
+        const qtd = parseFloat(document.getElementById(`cpi-qtd-${i}`)?.value || 0) || 0;
+        const preco = parseFloat(document.getElementById(`cpi-preco-${i}`)?.value || 0) || 0;
+        if (qtd > 0) itens.push({ produto_id: pid, produto_nome: nome, quantidade: qtd, preco_unitario: preco, subtotal: qtd * preco });
+      });
       if (!itens.length) { notify('Adicione pelo menos um item', 'error'); return; }
-      const r = await api('/api/compras', 'POST', { data: document.getElementById('cp-data')?.value || today(), fornecedor: document.getElementById('cp-forn')?.value || '', numero_nota: document.getElementById('cp-nf')?.value || '', observacao: document.getElementById('cp-obs')?.value || '', total: itens.reduce((a, b) => a + b.subtotal, 0), itens });
+      const conta_id = document.getElementById('cp-conta')?.value;
+      if (!conta_id) { notify('Selecione a conta de saída', 'error'); return; }
+      const r = await api('/api/compras', 'POST', {
+        data: document.getElementById('cp-data')?.value || today(),
+        fornecedor: document.getElementById('cp-forn')?.value || '',
+        numero_nota: document.getElementById('cp-nf')?.value || '',
+        observacao: document.getElementById('cp-obs')?.value || '',
+        conta_id: parseInt(conta_id),
+        total: itens.reduce((a, b) => a + b.subtotal, 0),
+        itens
+      });
       if (r?.ok) { notify('Compra registrada! Estoque atualizado.', 'success'); closeModal(); loadFinanceiro(); allProdutos = await api('/api/produtos') || []; }
+      else notify(r?.error || 'Erro ao registrar compra', 'error');
     }
 
     // ══════════════════════════════════════════════════════════════
@@ -3623,6 +3665,7 @@
             <div id="tab-vendedores" class="nav-item" style="padding:10px 20px; cursor:pointer;" onclick="switchSettingsTab('vendedores')">Vendedores</div>
             <div id="tab-maquininhas" class="nav-item" style="padding:10px 20px; cursor:pointer;" onclick="switchSettingsTab('maquininhas')">Maquininhas / Taxas</div>
             <div id="tab-usuarios" class="nav-item" style="padding:10px 20px; cursor:pointer;" onclick="switchSettingsTab('usuarios')">Usuários</div>
+            <div id="tab-contas" class="nav-item" style="padding:10px 20px; cursor:pointer;" onclick="switchSettingsTab('contas')">&#128181; Contas</div>
           </div>
           
           <div id="settings-tab-geral">
@@ -3697,6 +3740,17 @@
               <div class="empty"><div class="empty-icon">⏳</div><p>Carregando...</p></div>
             </div>
           </div>
+          <div id="settings-tab-contas" style="display:none;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+              <div class="section-title" style="margin:0;">Contas Financeiras</div>
+              <div style="display:flex;gap:8px;">
+                <button class="btn" onclick="transferirEntrContas()">&#8652; Transferir</button>
+                <button class="btn btn-primary" onclick="novaContaBancaria()">+ Nova Conta</button>
+              </div>
+            </div>
+            <p style="color: var(--text2); font-size: 13px; margin-bottom: 20px;">Gerencie suas contas financeiras. O Caixa recebe automaticamente o valor das vendas e ordens de serviço. Contas bancárias são usadas para despesas, compras e transferências.</p>
+            <div id="contas-list"><div class="empty"><div class="empty-icon">⏳</div><p>Carregando...</p></div></div>
+          </div>
         </div>
       `;
       loadVendedoresView();
@@ -3747,16 +3801,113 @@
     }
 
     function switchSettingsTab(tab) {
-      ['geral', 'vendedores', 'maquininhas', 'usuarios'].forEach(t => {
-        document.getElementById('tab-' + t).classList.remove('active');
-        document.getElementById('settings-tab-' + t).style.display = 'none';
+      ['geral', 'vendedores', 'maquininhas', 'usuarios', 'contas'].forEach(t => {
+        document.getElementById('tab-' + t)?.classList.remove('active');
+        const el = document.getElementById('settings-tab-' + t);
+        if (el) el.style.display = 'none';
       });
-      document.getElementById('tab-' + tab).classList.add('active');
+      document.getElementById('tab-' + tab)?.classList.add('active');
       document.getElementById('settings-tab-' + tab).style.display = 'block';
        if (tab === 'maquininhas') loadMaquininhasView();
        if (tab === 'usuarios') loadUsuariosTab();
        if (tab === 'vendedores') loadVendedoresView();
+       if (tab === 'contas') loadContasView();
      }
+
+    async function loadContasView() {
+      const contas = await api('/api/contas') || [];
+      const container = document.getElementById('contas-list');
+      if (!contas.length) {
+        container.innerHTML = '<div class="empty"><div class="empty-icon">🏦</div><p>Nenhuma conta cadastrada</p></div>';
+        return;
+      }
+      container.innerHTML = `
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px">
+          ${contas.map(c => {
+            const isCaixa = c.tipo === 'caixa';
+            const saldoColor = parseFloat(c.saldo) < 0 ? 'var(--red)' : 'var(--green)';
+            return `
+            <div class="card" style="padding:20px;position:relative">
+              <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+                <div style="font-size:24px">${isCaixa ? '🏪' : '🏦'}</div>
+                <div>
+                  <div style="font-weight:700;font-size:15px">${c.nome}</div>
+                  <div style="font-size:11px;color:var(--text3)">${isCaixa ? 'Conta Principal (Caixa)' : 'Conta Bancária'}</div>
+                </div>
+              </div>
+              <div style="font-size:22px;font-weight:800;color:${saldoColor};font-family:monospace;margin-bottom:14px">${fmt(c.saldo)}</div>
+              <div style="display:flex;gap:6px">
+                ${!isCaixa ? `<button class="btn btn-sm" onclick="editarConta(${c.id},'${c.nome.replace(/'/g, "\\'")}')">✏️ Editar</button>` : ''}
+                ${!isCaixa ? `<button class="btn btn-sm btn-danger" onclick="excluirConta(${c.id})">🗑️</button>` : ''}
+              </div>
+            </div>`;
+          }).join('')}
+        </div>
+      `;
+    }
+
+    async function novaContaBancaria() {
+      openModal('Nova Conta Bancária', `
+        <div class="form-grid">
+          <div class="form-group full"><label>Nome da Conta *</label><input id="nc-nome" placeholder="Ex: Banco Itaú, Nubank..."></div>
+          <div class="form-group full"><label>Saldo Inicial (R$)</label><input type="number" id="nc-saldo" value="0" min="0" step="0.01" placeholder="0.00"></div>
+        </div>
+      `, `<button class="btn" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="salvarNovaConta()">Criar Conta</button>`, 'modal-sm');
+    }
+
+    async function salvarNovaConta() {
+      const nome = document.getElementById('nc-nome')?.value?.trim();
+      const saldo_inicial = parseFloat(document.getElementById('nc-saldo')?.value || 0) || 0;
+      if (!nome) { notify('Nome é obrigatório', 'error'); return; }
+      const r = await api('/api/contas', 'POST', { nome, saldo_inicial });
+      if (r?.ok) { notify('Conta criada!', 'success'); closeModal(); loadContasView(); }
+      else notify(r?.error || 'Erro ao criar conta', 'error');
+    }
+
+    async function editarConta(id, nomeAtual) {
+      openModal('Editar Conta', `
+        <div class="form-group"><label>Nome da Conta *</label><input id="ec-nome" value="${nomeAtual}"></div>
+      `, `<button class="btn" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="salvarEditarConta(${id})">Salvar</button>`, 'modal-sm');
+    }
+
+    async function salvarEditarConta(id) {
+      const nome = document.getElementById('ec-nome')?.value?.trim();
+      if (!nome) { notify('Nome é obrigatório', 'error'); return; }
+      const r = await api(`/api/contas/${id}`, 'PUT', { nome });
+      if (r?.ok) { notify('Conta atualizada!', 'success'); closeModal(); loadContasView(); }
+      else notify(r?.error || 'Erro ao atualizar', 'error');
+    }
+
+    async function excluirConta(id) {
+      if (!confirm('Excluir esta conta? O saldo deve ser zero.')) return;
+      const r = await api(`/api/contas/${id}`, 'DELETE');
+      if (r?.ok) { notify('Conta excluída', 'info'); loadContasView(); }
+      else notify(r?.error || 'Erro ao excluir', 'error');
+    }
+
+    async function transferirEntrContas() {
+      const contas = await api('/api/contas') || [];
+      const opts = contas.map(c => `<option value="${c.id}">${c.nome} — ${fmt(c.saldo)}</option>`).join('');
+      openModal('Transferência entre Contas', `
+        <div class="form-grid">
+          <div class="form-group"><label>Da Conta (Origem) *</label><select id="tr-orig">${opts}</select></div>
+          <div class="form-group"><label>Para Conta (Destino) *</label><select id="tr-dest">${opts}</select></div>
+          <div class="form-group"><label>Valor *</label><input type="number" id="tr-val" min="0.01" step="0.01" placeholder="0.00"></div>
+          <div class="form-group full"><label>Descrição</label><input id="tr-desc" placeholder="Ex: Fechamento do mês"></div>
+        </div>
+      `, `<button class="btn" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="confirmarTransferencia()">Transferir</button>`, 'modal-md');
+    }
+
+    async function confirmarTransferencia() {
+      const origem = document.getElementById('tr-orig')?.value;
+      const destino = document.getElementById('tr-dest')?.value;
+      const valor = parseFloat(document.getElementById('tr-val')?.value || 0) || 0;
+      const descricao = document.getElementById('tr-desc')?.value || 'Transferência entre contas';
+      if (!valor || valor <= 0) { notify('Informe um valor maior que zero', 'error'); return; }
+      const r = await api('/api/contas/transferir', 'POST', { conta_origem_id: parseInt(origem), conta_destino_id: parseInt(destino), valor, descricao });
+      if (r?.ok) { notify('Transferência realizada!', 'success'); closeModal(); loadContasView(); }
+      else notify(r?.error || 'Erro na transferência', 'error');
+    }
 
     async function loadMaquininhasView() {
       const data = await api('/api/maquininhas');

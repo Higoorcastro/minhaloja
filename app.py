@@ -307,7 +307,28 @@ def init_db():
             taxa DECIMAL(5,2) DEFAULT 0,
             UNIQUE(tenant_id, nome)
         );
-        """)
+        CREATE TABLE IF NOT EXISTS contas (
+            id SERIAL PRIMARY KEY,
+            tenant_id INTEGER REFERENCES tenants(id) ON DELETE CASCADE,
+            nome TEXT NOT NULL,
+            tipo TEXT DEFAULT 'banco',
+            saldo DECIMAL(10,2) DEFAULT 0,
+            ativo INTEGER DEFAULT 1,
+            criado_em TIMESTAMP DEFAULT NOW()
+        );
+        CREATE TABLE IF NOT EXISTS movimentacoes (
+            id SERIAL PRIMARY KEY,
+            tenant_id INTEGER REFERENCES tenants(id) ON DELETE CASCADE,
+            conta_id INTEGER NOT NULL REFERENCES contas(id),
+            tipo TEXT NOT NULL,
+            valor DECIMAL(10,2) NOT NULL,
+            descricao TEXT,
+            referencia_tipo TEXT,
+            referencia_id INTEGER,
+            conta_destino_id INTEGER REFERENCES contas(id),
+            criado_em TIMESTAMP DEFAULT NOW()
+        );
+        """
 
         # Migração: adiciona coluna permissoes se não existir
         cur.execute("ALTER TABLE tenant_usuarios ADD COLUMN IF NOT EXISTS permissoes TEXT DEFAULT '';")
@@ -333,6 +354,17 @@ def init_db():
             if 'already exists' not in str(e).lower():
                 print(f"⚠️ Aviso na migração de constraints: {e}")
         
+        # Migração: contas nas despesas e compras
+        cur.execute("ALTER TABLE despesas ADD COLUMN IF NOT EXISTS conta_id INTEGER REFERENCES contas(id);")
+        cur.execute("ALTER TABLE compras ADD COLUMN IF NOT EXISTS conta_id INTEGER REFERENCES contas(id);")
+        
+        # Migração: cria conta Caixa para tenants que ainda não têm nenhuma
+        cur.execute("""
+            INSERT INTO contas (tenant_id, nome, tipo, saldo)
+            SELECT id, 'Caixa', 'caixa', 0 FROM tenants
+            WHERE id NOT IN (SELECT DISTINCT tenant_id FROM contas WHERE tenant_id IS NOT NULL)
+        """)
+
         raw_db.commit()
         print("✅ Banco de dados inicializado com sucesso.")
     except Exception as e:
@@ -928,6 +960,10 @@ def api_venda_create():
                    (vid, it.get('produto_id'), it['produto_nome'], it['quantidade'], it['preco_unitario'], it.get('desconto', 0), it['subtotal']))
         if it.get('produto_id'):
             db.execute("UPDATE produtos SET estoque=estoque-? WHERE tenant_id=? AND id=?", (it['quantidade'], tid, it['produto_id']))
+    # Creditar valor na conta Caixa
+    if d.get('status', 'CONCLUIDA') == 'CONCLUIDA' and total > 0:
+        caixa_id = _get_caixa_id(db, tid)
+        _movimentar(db, tid, caixa_id, 'entrada', total, f'Venda #{numero}', 'venda', vid)
     db.commit()
     return jsonify({'ok': True, 'numero': numero, 'id': vid})
 
@@ -949,8 +985,18 @@ def api_venda_cancelar(vid):
     
     # Valida existencia do tenant filter no update
     db.execute("UPDATE vendas SET status='CANCELADA', motivo_cancelamento=? WHERE tenant_id=? AND id=?",(motivo, tid, vid))
+    venda = db.execute("SELECT * FROM vendas WHERE tenant_id=? AND id=?", (tid, vid)).fetchone()
     for it in db.execute("SELECT vi.* FROM venda_itens vi JOIN vendas v ON v.id=vi.venda_id WHERE v.tenant_id=? AND v.id=?",(tid, vid,)).fetchall():
         if it['produto_id']: db.execute("UPDATE produtos SET estoque=estoque+? WHERE tenant_id=? AND id=?",(it['quantidade'],tid,it['produto_id']))
+    # Reverter valor do caixa no cancelamento
+    if venda and float(venda['total']) > 0:
+        caixa_id = _get_caixa_id(db, tid)
+        saldo_row = db.execute("SELECT saldo FROM contas WHERE id=? AND tenant_id=?", (caixa_id, tid)).fetchone()
+        val_cancel = min(float(venda['total']), float(saldo_row['saldo'])) if saldo_row else 0
+        if val_cancel > 0:
+            db.execute("INSERT INTO movimentacoes(tenant_id,conta_id,tipo,valor,descricao,referencia_tipo,referencia_id) VALUES(?,?,?,?,?,?,?)",
+                       (tid, caixa_id, 'saida', val_cancel, f'Cancelamento Venda #{venda["numero"]}', 'venda', vid))
+            db.execute("UPDATE contas SET saldo=saldo-? WHERE id=? AND tenant_id=?", (val_cancel, caixa_id, tid))
     db.commit(); return jsonify({'ok':True})
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -1030,8 +1076,23 @@ def api_despesas_list():
 @require_module('financeiro')
 def api_despesa_create():
     db=get_db(); d=request.json; tid=session['tenant_id']
-    db.execute("INSERT INTO despesas(tenant_id,descricao,categoria,valor,data,forma_pagamento,observacao) VALUES(?,?,?,?,?,?,?)",
-               (tid,d['descricao'],d.get('categoria','GERAL'),d['valor'],d['data'],d.get('forma_pagamento','DINHEIRO'),d.get('observacao','')))
+    conta_id = d.get('conta_id')
+    valor = float(d.get('valor', 0))
+    if not conta_id:
+        return jsonify({'ok':False,'error':'Selecione a conta de saída'}), 400
+    if valor <= 0:
+        return jsonify({'ok':False,'error':'Valor deve ser maior que zero'}), 400
+    # Validate balance first
+    err = _movimentar.__doc__  # just to check function exists - actual call below
+    saldo_row = db.execute("SELECT saldo FROM contas WHERE id=? AND tenant_id=?", (conta_id, tid)).fetchone()
+    if not saldo_row or float(saldo_row['saldo']) < valor:
+        return jsonify({'ok':False,'error':'Saldo insuficiente na conta selecionada'}), 400
+    cur = db.execute("INSERT INTO despesas(tenant_id,descricao,categoria,valor,data,forma_pagamento,observacao,conta_id) VALUES(?,?,?,?,?,?,?,?) RETURNING id",
+               (tid,d['descricao'],d.get('categoria','GERAL'),valor,d['data'],d.get('forma_pagamento','DINHEIRO'),d.get('observacao',''),conta_id))
+    did = cur.fetchone()['id']
+    db.execute("INSERT INTO movimentacoes(tenant_id,conta_id,tipo,valor,descricao,referencia_tipo,referencia_id) VALUES(?,?,?,?,?,?,?)",
+               (tid, conta_id, 'saida', valor, f'Despesa: {d["descricao"]}', 'despesa', did))
+    db.execute("UPDATE contas SET saldo=saldo-? WHERE id=? AND tenant_id=?", (valor, conta_id, tid))
     db.commit(); return jsonify({'ok':True})
 
 @app.route('/api/despesas/<int:did>', methods=['DELETE'])
@@ -1057,32 +1118,127 @@ def api_compras_list():
 @require_module('financeiro')
 def api_compra_create():
     db=get_db(); d=request.json; tid=session['tenant_id']
-    cur=db.execute("INSERT INTO compras(tenant_id,numero_nota,fornecedor,total,data,observacao) VALUES(?,?,?,?,?,?) RETURNING id",
-                   (tid,d.get('numero_nota',''),d.get('fornecedor',''),d.get('total',0),d['data'],d.get('observacao','')))
+    total = float(d.get('total', 0))
+    conta_id = d.get('conta_id')
+    if not conta_id:
+        return jsonify({'ok':False,'error':'Selecione a conta de saída'}), 400
+    saldo_row = db.execute("SELECT saldo FROM contas WHERE id=? AND tenant_id=?", (conta_id, tid)).fetchone()
+    if not saldo_row or float(saldo_row['saldo']) < total:
+        return jsonify({'ok':False,'error':'Saldo insuficiente na conta selecionada'}), 400
+    cur=db.execute("INSERT INTO compras(tenant_id,numero_nota,fornecedor,total,data,observacao,conta_id) VALUES(?,?,?,?,?,?,?) RETURNING id",
+                   (tid,d.get('numero_nota',''),d.get('fornecedor',''),total,d['data'],d.get('observacao',''),conta_id))
     cid=cur.fetchone()['id']
     for it in d.get('itens',[]):
         db.execute("INSERT INTO compra_itens(compra_id,produto_id,produto_nome,quantidade,preco_unitario,subtotal) VALUES(?,?,?,?,?,?)",
                    (cid,it.get('produto_id'),it['produto_nome'],it['quantidade'],it['preco_unitario'],it['subtotal']))
         if it.get('produto_id'): db.execute("UPDATE produtos SET estoque=estoque+?,preco_custo=? WHERE tenant_id=? AND id=?",(it['quantidade'],it['preco_unitario'],tid,it['produto_id']))
+    db.execute("INSERT INTO movimentacoes(tenant_id,conta_id,tipo,valor,descricao,referencia_tipo,referencia_id) VALUES(?,?,?,?,?,?,?)",
+               (tid, conta_id, 'saida', total, f'Compra #{cid} - {d.get("fornecedor","")}', 'compra', cid))
+    db.execute("UPDATE contas SET saldo=saldo-? WHERE id=? AND tenant_id=?", (total, conta_id, tid))
     db.commit(); return jsonify({'ok':True,'id':cid})
 
 # ══════════════════════════════════════════════════════════════════════════
-# API – Vendedores
+# API – Contas Financeiras
 # ══════════════════════════════════════════════════════════════════════════
-@app.route('/api/vendedores', methods=['GET'])
-@require_auth
-def api_vendedores_list():
-    db=get_db(); tid=session['tenant_id']
-    return jsonify(rows_to_list(db.execute("SELECT * FROM vendedores WHERE tenant_id=? AND (ativo=1 OR ativo IS NULL) ORDER BY nome", (tid,)).fetchall()))
+def _get_caixa_id(db, tenant_id):
+    row = db.execute("SELECT id FROM contas WHERE tenant_id=? AND tipo='caixa' AND ativo=1 LIMIT 1", (tenant_id,)).fetchone()
+    if not row:
+        cur = db.execute("INSERT INTO contas(tenant_id,nome,tipo,saldo) VALUES(?,?,?,?) RETURNING id", (tenant_id,'Caixa','caixa',0))
+        db.commit()
+        return cur.fetchone()['id']
+    return row['id']
 
-@app.route('/api/dump_vendedores', methods=['GET'])
-def api_dump_vendedores():
-    try:
-        db=get_db()
-        rows = db.execute("SELECT * FROM vendedores").fetchall()
-        return jsonify([dict(r) for r in rows])
-    except Exception as e:
-        return jsonify({'error': str(e)})
+def _movimentar(db, tenant_id, conta_id, tipo, valor, descricao, ref_tipo=None, ref_id=None, conta_destino_id=None):
+    """Record transaction and update balance. Returns error string or None on success."""
+    if tipo in ('saida', 'transferencia'):
+        saldo_row = db.execute("SELECT saldo FROM contas WHERE id=? AND tenant_id=?", (conta_id, tenant_id)).fetchone()
+        if not saldo_row or float(saldo_row['saldo']) < float(valor):
+            return 'Saldo insuficiente na conta selecionada'
+    db.execute("INSERT INTO movimentacoes(tenant_id,conta_id,tipo,valor,descricao,referencia_tipo,referencia_id,conta_destino_id) VALUES(?,?,?,?,?,?,?,?)",
+               (tenant_id, conta_id, tipo, valor, descricao, ref_tipo, ref_id, conta_destino_id))
+    if tipo == 'entrada':
+        db.execute("UPDATE contas SET saldo=saldo+? WHERE id=? AND tenant_id=?", (valor, conta_id, tenant_id))
+    else:
+        db.execute("UPDATE contas SET saldo=saldo-? WHERE id=? AND tenant_id=?", (valor, conta_id, tenant_id))
+        if tipo == 'transferencia' and conta_destino_id:
+            db.execute("UPDATE contas SET saldo=saldo+? WHERE id=? AND tenant_id=?", (valor, conta_destino_id, tenant_id))
+    return None
+
+@app.route('/api/contas', methods=['GET'])
+@require_auth
+def api_contas_list():
+    db=get_db(); tid=session['tenant_id']
+    return jsonify(rows_to_list(db.execute("SELECT * FROM contas WHERE tenant_id=? AND ativo=1 ORDER BY tipo DESC, nome", (tid,)).fetchall()))
+
+@app.route('/api/contas', methods=['POST'])
+@require_auth
+@require_module('settings')
+def api_conta_create():
+    db=get_db(); d=request.json; tid=session['tenant_id']
+    nome = d.get('nome','').strip()
+    if not nome: return jsonify({'ok':False,'error':'Nome é obrigatório'}), 400
+    saldo_ini = float(d.get('saldo_inicial', 0))
+    cur = db.execute("INSERT INTO contas(tenant_id,nome,tipo,saldo) VALUES(?,?,?,?) RETURNING id", (tid, nome, 'banco', saldo_ini))
+    cid = cur.fetchone()['id']
+    if saldo_ini > 0:
+        db.execute("INSERT INTO movimentacoes(tenant_id,conta_id,tipo,valor,descricao) VALUES(?,?,?,?,?)", (tid, cid, 'entrada', saldo_ini, 'Saldo inicial'))
+    db.commit(); return jsonify({'ok':True})
+
+@app.route('/api/contas/<int:cid>', methods=['PUT'])
+@require_auth
+@require_module('settings')
+def api_conta_update(cid):
+    db=get_db(); d=request.json; tid=session['tenant_id']
+    nome = d.get('nome','').strip()
+    if not nome: return jsonify({'ok':False,'error':'Nome é obrigatório'}), 400
+    db.execute("UPDATE contas SET nome=? WHERE id=? AND tenant_id=?", (nome, cid, tid))
+    db.commit(); return jsonify({'ok':True})
+
+@app.route('/api/contas/<int:cid>', methods=['DELETE'])
+@require_auth
+@require_module('settings')
+def api_conta_delete(cid):
+    db=get_db(); tid=session['tenant_id']
+    conta = db.execute("SELECT * FROM contas WHERE id=? AND tenant_id=?", (cid, tid)).fetchone()
+    if not conta: return jsonify({'ok':False,'error':'Conta não encontrada'}), 404
+    if conta['tipo'] == 'caixa': return jsonify({'ok':False,'error':'A conta Caixa não pode ser excluída'}), 400
+    if float(conta['saldo']) != 0: return jsonify({'ok':False,'error':f'Conta possui saldo. Transfira o saldo antes de excluir.'}), 400
+    db.execute("UPDATE contas SET ativo=0 WHERE id=? AND tenant_id=?", (cid, tid))
+    db.commit(); return jsonify({'ok':True})
+
+@app.route('/api/contas/transferir', methods=['POST'])
+@require_auth
+@require_module('settings')
+def api_conta_transferir():
+    db=get_db(); d=request.json; tid=session['tenant_id']
+    origem_id = d.get('conta_origem_id')
+    destino_id = d.get('conta_destino_id')
+    valor = float(d.get('valor', 0))
+    descricao = d.get('descricao', 'Transferência entre contas')
+    if not origem_id or not destino_id: return jsonify({'ok':False,'error':'Selecione as contas de origem e destino'}), 400
+    if int(origem_id) == int(destino_id): return jsonify({'ok':False,'error':'Origem e destino devem ser diferentes'}), 400
+    if valor <= 0: return jsonify({'ok':False,'error':'Valor deve ser maior que zero'}), 400
+    err = _movimentar(db, tid, origem_id, 'transferencia', valor, descricao, 'transferencia', None, destino_id)
+    if err: return jsonify({'ok':False,'error':err}), 400
+    db.commit(); return jsonify({'ok':True})
+
+@app.route('/api/movimentacoes', methods=['GET'])
+@require_auth
+def api_movimentacoes_list():
+    db=get_db(); tid=session['tenant_id']
+    conta_id = request.args.get('conta_id')
+    limit = int(request.args.get('limit', 50))
+    where = "WHERE m.tenant_id=?"
+    params = [tid]
+    if conta_id:
+        where += " AND m.conta_id=?"
+        params.append(conta_id)
+    rows = db.execute(f"""SELECT m.*, c.nome as conta_nome, cd.nome as conta_destino_nome
+        FROM movimentacoes m
+        JOIN contas c ON c.id=m.conta_id
+        LEFT JOIN contas cd ON cd.id=m.conta_destino_id
+        {where} ORDER BY m.criado_em DESC LIMIT ?""", params + [limit]).fetchall()
+    return jsonify(rows_to_list(rows))
 
 @app.route('/api/vendedores', methods=['POST'])
 @require_auth
