@@ -186,6 +186,7 @@ def init_db():
             observacao TEXT,
             motivo_cancelamento TEXT,
             maquininha_id INTEGER,
+            num_parcelas INTEGER DEFAULT 1,
             taxa_valor DECIMAL(10,2) DEFAULT 0,
             valor_liquido DECIMAL(10,2) DEFAULT 0,
             criado_em TIMESTAMP DEFAULT NOW(),
@@ -196,7 +197,9 @@ def init_db():
             tenant_id INTEGER REFERENCES tenants(id) ON DELETE CASCADE,
             nome TEXT NOT NULL,
             taxa_debito DECIMAL(5,2) DEFAULT 0,
-            taxa_credito DECIMAL(5,2) DEFAULT 0,
+            taxa_credito_1x DECIMAL(5,2) DEFAULT 0,
+            taxa_credito_2x DECIMAL(5,2) DEFAULT 0,
+            taxa_credito_3x DECIMAL(5,2) DEFAULT 0,
             ativo INTEGER DEFAULT 1,
             criado_em TIMESTAMP DEFAULT NOW()
         );
@@ -311,8 +314,14 @@ def init_db():
         
         # Migração: maquininhas e taxas em vendas
         cur.execute("ALTER TABLE vendas ADD COLUMN IF NOT EXISTS maquininha_id INTEGER;")
+        cur.execute("ALTER TABLE vendas ADD COLUMN IF NOT EXISTS num_parcelas INTEGER DEFAULT 1;")
         cur.execute("ALTER TABLE vendas ADD COLUMN IF NOT EXISTS taxa_valor DECIMAL(10,2) DEFAULT 0;")
         cur.execute("ALTER TABLE vendas ADD COLUMN IF NOT EXISTS valor_liquido DECIMAL(10,2) DEFAULT 0;")
+
+        # Migração: novas colunas em maquininhas
+        cur.execute("ALTER TABLE maquininhas ADD COLUMN IF NOT EXISTS taxa_credito_1x DECIMAL(5,2) DEFAULT 0;")
+        cur.execute("ALTER TABLE maquininhas ADD COLUMN IF NOT EXISTS taxa_credito_2x DECIMAL(5,2) DEFAULT 0;")
+        cur.execute("ALTER TABLE maquininhas ADD COLUMN IF NOT EXISTS taxa_credito_3x DECIMAL(5,2) DEFAULT 0;")
         
         # Migração: garante que o login seja único globalmente
         try:
@@ -872,6 +881,7 @@ def api_venda_create():
     forma_pgto = d.get('forma_pagamento', 'DINHEIRO')
     total = float(d.get('total', 0))
     maquininha_id = d.get('maquininha_id')
+    num_parcelas = int(d.get('num_parcelas', 1))
     taxa_valor = 0
     valor_liquido = total
 
@@ -882,16 +892,21 @@ def api_venda_create():
             if 'DÉBITO' in forma_pgto.upper():
                 taxa_perc = float(maq['taxa_debito'] or 0)
             elif 'CRÉDITO' in forma_pgto.upper():
-                taxa_perc = float(maq['taxa_credito'] or 0)
+                if num_parcelas <= 1:
+                    taxa_perc = float(maq['taxa_credito_1x'] or 0)
+                elif num_parcelas == 2:
+                    taxa_perc = float(maq['taxa_credito_2x'] or 0)
+                else:
+                    taxa_perc = float(maq['taxa_credito_3x'] or 0)
             
             taxa_valor = round(total * (taxa_perc / 100), 2)
             valor_liquido = total - taxa_valor
 
     cur = db.execute(
-        "INSERT INTO vendas(tenant_id,numero,cliente_id,cliente_nome,vendedor_id,vendedor_nome,subtotal,desconto,total,forma_pagamento,status,observacao,maquininha_id,taxa_valor,valor_liquido) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) RETURNING id",
+        "INSERT INTO vendas(tenant_id,numero,cliente_id,cliente_nome,vendedor_id,vendedor_nome,subtotal,desconto,total,forma_pagamento,status,observacao,maquininha_id,num_parcelas,taxa_valor,valor_liquido) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) RETURNING id",
         (tid, numero, d.get('cliente_id'), d.get('cliente_nome', ''), d.get('vendedor_id'), d.get('vendedor_nome', ''), 
          d.get('subtotal', 0), d.get('desconto', 0), total, forma_pgto, d.get('status', 'CONCLUIDA'), d.get('observacao', ''),
-         maquininha_id, taxa_valor, valor_liquido)
+         maquininha_id, num_parcelas, taxa_valor, valor_liquido)
     )
     vid = cur.fetchone()['id']
     for it in d.get('itens', []):
@@ -1358,8 +1373,8 @@ def api_maquininha_create():
     db = get_db()
     d = request.json
     tid = session['tenant_id']
-    db.execute("INSERT INTO maquininhas(tenant_id,nome,taxa_debito,taxa_credito) VALUES(?,?,?,?)",
-               (tid, d['nome'], d.get('taxa_debito', 0), d.get('taxa_credito', 0)))
+    db.execute("INSERT INTO maquininhas(tenant_id,nome,taxa_debito,taxa_credito_1x,taxa_credito_2x,taxa_credito_3x) VALUES(?,?,?,?,?,?)",
+               (tid, d['nome'], d.get('taxa_debito', 0), d.get('taxa_credito_1x', 0), d.get('taxa_credito_2x', 0), d.get('taxa_credito_3x', 0)))
     db.commit()
     return jsonify({'ok': True})
 
@@ -1370,8 +1385,8 @@ def api_maquininha_update(mid):
     db = get_db()
     d = request.json
     tid = session['tenant_id']
-    db.execute("UPDATE maquininhas SET nome=?, taxa_debito=?, taxa_credito=? WHERE tenant_id=? AND id=?",
-               (d['nome'], d.get('taxa_debito', 0), d.get('taxa_credito', 0), tid, mid))
+    db.execute("UPDATE maquininhas SET nome=?, taxa_debito=?, taxa_credito_1x=?, taxa_credito_2x=?, taxa_credito_3x=? WHERE tenant_id=? AND id=?",
+               (d['nome'], d.get('taxa_debito', 0), d.get('taxa_credito_1x', 0), d.get('taxa_credito_2x', 0), d.get('taxa_credito_3x', 0), tid, mid))
     db.commit()
     return jsonify({'ok': True})
 

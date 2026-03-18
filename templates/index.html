@@ -2606,7 +2606,15 @@
           ${maqOpts}
         </select>
       </div>
-      <div class="form-group ${maqOpts ? '' : 'full'}"><label>Observação</label><input type="text" id="co-obs"></div>
+      <div class="form-group" id="co-parc-wrap" style="display:none;">
+        <label>Parcelas</label>
+        <select id="co-parc">
+          <option value="1">1x (À vista)</option>
+          <option value="2">2x</option>
+          <option value="3">3x</option>
+        </select>
+      </div>
+      <div class="form-group full"><label>Observação</label><input type="text" id="co-obs"></div>
       <div class="form-group full">
         <div style="background:var(--bg3);border-radius:8px;padding:14px">
           <div class="total-row"><span>Subtotal</span><span class="mono">${fmt(sub)}</span></div>
@@ -2621,11 +2629,15 @@
 
     function toggleMaqSelection(val) {
       const wrap = document.getElementById('co-maq-wrap');
+      const parcWrap = document.getElementById('co-parc-wrap');
       if (val.includes('CARTÃO')) {
         wrap.style.display = 'block';
+        parcWrap.style.display = val.includes('CRÉDITO') ? 'block' : 'none';
       } else {
         wrap.style.display = 'none';
+        parcWrap.style.display = 'none';
         document.getElementById('co-maq').value = '';
+        document.getElementById('co-parc').value = '1';
       }
     }
 
@@ -2641,6 +2653,7 @@
 
       const pgto = document.getElementById('co-pgto').value;
       const maqId = document.getElementById('co-maq')?.value || null;
+      const numParc = document.getElementById('co-parc')?.value || 1;
 
       if (pgto.includes('CARTÃO') && !maqId && (window._allMaquininhas || []).length > 0) {
         notify('Selecione a maquininha usada', 'error');
@@ -2651,7 +2664,7 @@
         cliente_id: cliId || undefined, cliente_nome: cliNome,
         vendedor_id: vendId || undefined, vendedor_nome: vendNome,
         subtotal: sub, desconto: desc, total: Math.max(0, sub - desc),
-        forma_pagamento: pgto, maquininha_id: maqId,
+        forma_pagamento: pgto, maquininha_id: maqId, num_parcelas: numParc,
         observacao: document.getElementById('co-obs').value, itens: cart
       });
       if (r?.ok) {
@@ -2714,7 +2727,7 @@
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px;font-size:13px">
       <div><span class="text-muted">Cliente:</span> ${d.venda.cliente_nome || '-'}</div>
       <div><span class="text-muted">Vendedor:</span> ${d.venda.vendedor_nome || '-'}</div>
-      <div><span class="text-muted">Pagamento:</span> ${d.venda.forma_pagamento}</div>
+      <div><span class="text-muted">Pagamento:</span> ${d.venda.forma_pagamento} ${d.venda.num_parcelas > 1 ? `(${d.venda.num_parcelas}x)` : ''}</div>
       <div><span class="text-muted">Data:</span> ${new Date(d.venda.criado_em).toLocaleString('pt-BR')}</div>
       ${d.venda.maquininha_id ? `<div><span class="text-muted">Taxa Operadora:</span> <span class="text-red">-${fmt(d.venda.taxa_valor)}</span></div>` : ''}
       ${d.venda.maquininha_id ? `<div><span class="text-muted">Valor Líquido:</span> <span class="text-green fw7">${fmt(d.venda.valor_liquido)}</span></div>` : ''}
@@ -2765,7 +2778,7 @@
         <div style="margin-bottom: 10px; font-size: 11px;">
           <b>Data:</b> ${new Date(v.criado_em).toLocaleString('pt-BR')}<br>
           <b>Cliente:</b> ${v.cliente_nome || 'Consumidor Final'}<br>
-          <b>Pagamento:</b> ${v.forma_pagamento}
+          <b>Pagamento:</b> ${v.forma_pagamento} ${v.num_parcelas > 1 ? `(${v.num_parcelas}x)` : ''}
         </div>
 
         <table style="width: 95%; border-collapse: collapse; font-size: 11px; margin-bottom: 10px;margin-left: 5px;margin-right: 5px; font-weight: 700;">
@@ -3758,8 +3771,10 @@
               <thead>
                 <tr>
                   <th>Nome / Operadora</th>
-                  <th>Taxa Débito (%)</th>
-                  <th>Taxa Crédito (%)</th>
+                  <th>Débito</th>
+                  <th>Crédito 1x</th>
+                  <th>Crédito 2x</th>
+                  <th>Crédito 3x</th>
                   <th>Ações</th>
                 </tr>
               </thead>
@@ -3768,7 +3783,9 @@
                   <tr>
                     <td><b>${m.nome}</b></td>
                     <td class="mono">${m.taxa_debito}%</td>
-                    <td class="mono">${m.taxa_credito}%</td>
+                    <td class="mono">${m.taxa_credito_1x || 0}%</td>
+                    <td class="mono">${m.taxa_credito_2x || 0}%</td>
+                    <td class="mono">${m.taxa_credito_3x || 0}%</td>
                     <td style="display:flex;gap:4px">
                       <button class="btn btn-sm" onclick="editarMaquininha(${m.id})">Editar</button>
                       <button class="btn btn-sm btn-danger" onclick="deletarMaquininha(${m.id}, '${m.nome}')">Excluir</button>
@@ -3786,9 +3803,11 @@
         <div class="form-grid">
           <div class="form-group full"><label>Nome / Operadora *</label><input id="mq-nome" placeholder="Ex: Stone, PagSeguro, Cielo"></div>
           <div class="form-group"><label>Taxa Débito (%)</label><input type="number" step="0.01" id="mq-deb" value="0"></div>
-          <div class="form-group"><label>Taxa Crédito (%)</label><input type="number" step="0.01" id="mq-cre" value="0"></div>
+          <div class="form-group"><label>Taxa Crédito 1x (%)</label><input type="number" step="0.01" id="mq-cr1" value="0"></div>
+          <div class="form-group"><label>Taxa Crédito 2x (%)</label><input type="number" step="0.01" id="mq-cr2" value="0"></div>
+          <div class="form-group"><label>Taxa Crédito 3x (%)</label><input type="number" step="0.01" id="mq-cr3" value="0"></div>
         </div>
-      `, `<button class="btn" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="salvarMaquininha()">Salvar</button>`, 'modal-sm');
+      `, `<button class="btn" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="salvarMaquininha()">Salvar</button>`, 'modal-md');
     }
 
     async function editarMaquininha(id) {
@@ -3799,17 +3818,21 @@
         <div class="form-grid">
           <div class="form-group full"><label>Nome / Operadora *</label><input id="mq-nome" value="${m.nome}"></div>
           <div class="form-group"><label>Taxa Débito (%)</label><input type="number" step="0.01" id="mq-deb" value="${m.taxa_debito}"></div>
-          <div class="form-group"><label>Taxa Crédito (%)</label><input type="number" step="0.01" id="mq-cre" value="${m.taxa_credito}"></div>
+          <div class="form-group"><label>Taxa Crédito 1x (%)</label><input type="number" step="0.01" id="mq-cr1" value="${m.taxa_credito_1x}"></div>
+          <div class="form-group"><label>Taxa Crédito 2x (%)</label><input type="number" step="0.01" id="mq-cr2" value="${m.taxa_credito_2x}"></div>
+          <div class="form-group"><label>Taxa Crédito 3x (%)</label><input type="number" step="0.01" id="mq-cr3" value="${m.taxa_credito_3x}"></div>
         </div>
-      `, `<button class="btn" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="salvarMaquininha(${id})">Salvar</button>`, 'modal-sm');
+      `, `<button class="btn" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="salvarMaquininha(${id})">Salvar</button>`, 'modal-md');
     }
 
     async function salvarMaquininha(id = null) {
       const nome = document.getElementById('mq-nome')?.value.trim();
       const deb = parseFloat(document.getElementById('mq-deb')?.value || 0);
-      const cre = parseFloat(document.getElementById('mq-cre')?.value || 0);
+      const cr1 = parseFloat(document.getElementById('mq-cr1')?.value || 0);
+      const cr2 = parseFloat(document.getElementById('mq-cr2')?.value || 0);
+      const cr3 = parseFloat(document.getElementById('mq-cr3')?.value || 0);
       if (!nome) { notify('Nome é obrigatório', 'error'); return; }
-      const payload = { nome, taxa_debito: deb, taxa_credito: cre };
+      const payload = { nome, taxa_debito: deb, taxa_credito_1x: cr1, taxa_credito_2x: cr2, taxa_credito_3x: cr3 };
       const r = id ? await api(`/api/maquininhas/${id}`, 'PUT', payload) : await api('/api/maquininhas', 'POST', payload);
       if (r?.ok) { notify('Maquininha salva!', 'success'); closeModal(); loadMaquininhasView(); }
       else notify('Erro ao salvar', 'error');
