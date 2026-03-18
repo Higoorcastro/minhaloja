@@ -1087,14 +1087,15 @@ def api_os_update(oid):
     db.commit(); return jsonify({'ok':True})
 
 # ══════════════════════════════════════════════════════════════════════════
+@app.route('/api/despesas', methods=['GET'])
 @require_auth
 @require_module('financeiro')
 def api_despesas_list():
     db=get_db(); di=request.args.get('data_ini',''); df=request.args.get('data_fim',''); cat=request.args.get('categoria','')
     tid=session['tenant_id']
     sql="SELECT * FROM despesas WHERE tenant_id=?"; params=[tid]
-    if di: sql+=" AND date(data)>=?"; params.append(di)
-    if df: sql+=" AND date(data)<=?"; params.append(df)
+    if di: sql+=" AND data>=?"; params.append(di)
+    if df: sql+=" AND data<=?"; params.append(df)
     if cat: sql+=" AND categoria=?"; params.append(cat)
     return jsonify(rows_to_list(db.execute(sql+' ORDER BY data DESC LIMIT 200',params).fetchall()))
 
@@ -1136,8 +1137,8 @@ def api_compras_list():
     db=get_db(); di=request.args.get('data_ini',''); df=request.args.get('data_fim','')
     tid=session['tenant_id']
     sql="SELECT * FROM compras WHERE tenant_id=?"; params=[tid]
-    if di: sql+=" AND date(data)>=?"; params.append(di)
-    if df: sql+=" AND date(data)<=?"; params.append(df)
+    if di: sql+=" AND data>=?"; params.append(di)
+    if df: sql+=" AND data<=?"; params.append(df)
     return jsonify(rows_to_list(db.execute(sql+' ORDER BY data DESC LIMIT 200',params).fetchall()))
 
 @app.route('/api/compras', methods=['POST'])
@@ -1272,7 +1273,12 @@ def api_movimentacoes_list():
 def api_vendedores_list():
     db = get_db()
     tid = session['tenant_id']
-    rows = db.execute("SELECT * FROM vendedores WHERE tenant_id=? ORDER BY id DESC", (tid,)).fetchall()
+    ativo_only = request.args.get('all') != '1'
+    sql = "SELECT * FROM vendedores WHERE tenant_id=?"
+    params = [tid]
+    if ativo_only:
+        sql += " AND ativo=1"
+    rows = db.execute(sql + " ORDER BY nome ASC", params).fetchall()
     return jsonify(rows_to_list(rows))
 
 @app.route('/api/vendedores', methods=['POST'])
@@ -1280,8 +1286,15 @@ def api_vendedores_list():
 @require_module('settings')
 def api_vendedor_create():
     db=get_db(); d=request.json; tid=session['tenant_id']
+    nome = d.get('nome', '').strip()
+    if not nome: return jsonify({'ok':False,'error':'Nome obrigatório'}), 400
+    
+    # Check for existing active salesperson with same name
+    exists = db.execute("SELECT id FROM vendedores WHERE tenant_id=? AND lower(nome)=lower(?) AND ativo=1", (tid, nome)).fetchone()
+    if exists: return jsonify({'ok':False,'error':'Já existe um vendedor ativo com este nome'}), 400
+    
     ativo_val = int(d.get('ativo', 1))
-    db.execute("INSERT INTO vendedores(tenant_id,nome,ativo) VALUES(?,?,?)", (tid, d['nome'], ativo_val))
+    db.execute("INSERT INTO vendedores(tenant_id,nome,ativo) VALUES(?,?,?)", (tid, nome, ativo_val))
     db.commit(); return jsonify({'ok':True})
 
 @app.route('/api/vendedores/<int:vid>', methods=['PUT'])
@@ -1299,7 +1312,8 @@ def api_vendedor_update(vid):
 @require_module('settings')
 def api_vendedor_delete(vid):
     db=get_db(); tid=session['tenant_id']
-    db.execute("UPDATE vendedores SET ativo=0 WHERE tenant_id=? AND id=?", (tid, vid))
+    # Hard delete if it was already inactive or just created (to clean up duplicates easily)
+    db.execute("DELETE FROM vendedores WHERE tenant_id=? AND id=?", (tid, vid))
     db.commit(); return jsonify({'ok':True})
 
 # ══════════════════════════════════════════════════════════════════════════

@@ -3907,7 +3907,7 @@
           </div>
         </div>
       `;
-      loadVendedoresView();
+      // loadVendedoresView if tab switched (handled by switchSettingsTab default state if needed)
     }
 
     async function loadUsuariosTab() {
@@ -4199,15 +4199,25 @@
 
       if (!nome) { notify('Nome é obrigatório', 'error'); return; }
 
-      const payload = { nome, ativo };
-      const r = id ? await api(`/api/vendedores/${id}`, 'PUT', payload) : await api('/api/vendedores', 'POST', payload);
+      const btn = event.target;
+      const oldText = btn.innerText;
+      btn.disabled = true;
+      btn.innerText = 'Salvando...';
 
-      if (r?.ok) {
-        notify(id ? 'Vendedor atualizado!' : 'Vendedor criado!', 'success');
-        closeModal();
-        loadVendedoresView();
-      } else {
-        notify('Erro ao salvar vendedor', 'error');
+      try {
+        const payload = { nome, ativo };
+        const r = id ? await api(`/api/vendedores/${id}`, 'PUT', payload) : await api('/api/vendedores', 'POST', payload);
+
+        if (r?.ok) {
+          notify(id ? 'Vendedor atualizado!' : 'Vendedor criado!', 'success');
+          closeModal();
+          loadVendedoresView();
+        } else {
+          notify(r?.error || 'Erro ao salvar vendedor', 'error');
+        }
+      } finally {
+        btn.disabled = false;
+        btn.innerText = oldText;
       }
     }
 
