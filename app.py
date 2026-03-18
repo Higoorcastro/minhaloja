@@ -328,7 +328,7 @@ def init_db():
             conta_destino_id INTEGER REFERENCES contas(id),
             criado_em TIMESTAMP DEFAULT NOW()
         );
-        """
+        """)
 
         # Migração: adiciona coluna permissoes se não existir
         cur.execute("ALTER TABLE tenant_usuarios ADD COLUMN IF NOT EXISTS permissoes TEXT DEFAULT '';")
