@@ -3234,7 +3234,7 @@
     <div class="form-group">
       <label>Código de Barras</label>
       <div style="display:flex;gap:4px">
-        <input id="pf-cod" value="${p?.codigo || ''}" style="flex:1" placeholder="Manual ou Automático">
+        <input id="pf-cod" value="${p?.codigo || ''}" style="flex:1" placeholder="(Clique para gerar o código)">
         <button type="button" class="btn btn-sm" onclick="gerarCodigoBarras()" title="Gerar código aleatório" style="padding:0 8px;font-size:16px">🎲</button>
       </div>
     </div>
@@ -3254,9 +3254,10 @@
     function gerarCodigoBarras() {
       const inp = document.getElementById('pf-cod');
       if (!inp) return;
-      // Gera um código de 13 dígitos (estilo EAN-13 random)
-      let code = "";
-      for (let i = 0; i < 13; i++) {
+      // Inicia com 789 ou 780 (Brasil)
+      const prefix = Math.random() > 0.5 ? "789" : "780";
+      let code = prefix;
+      for (let i = 0; i < 10; i++) {
         code += Math.floor(Math.random() * 10).toString();
       }
       inp.value = code;
