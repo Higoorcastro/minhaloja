@@ -72,17 +72,38 @@
 {% block scripts %}
 <script>
     let planos = [];
-    const ALL_MODULES = {
+    const MODULE_STRUCTURE = {
         dashboard: { label: 'Dashboard', icon: 'layout-dashboard' },
         pdv: { label: 'PDV / Frente de Caixa', icon: 'shopping-cart' },
         vendas: { label: 'Gestão de Vendas', icon: 'file-text' },
         os: { label: 'Ordens de Serviço', icon: 'tool' },
         produtos: { label: 'Produtos e Estoque', icon: 'package' },
         clientes: { label: 'Cadastro de Clientes', icon: 'users' },
-        financeiro: { label: 'Caixa e Fluxo', icon: 'dollar-sign' },
-        receber: { label: 'Contas a Receber', icon: 'credit-card' },
-        relatorios: { label: 'Relatórios Mensais', icon: 'bar-chart-3' },
-        settings: { label: 'Configurações', icon: 'settings' }
+        financeiro: { 
+            label: 'Caixa e Fluxo', icon: 'dollar-sign',
+            subs: {
+                'financeiro:fluxo': 'Fluxo de Caixa',
+                'financeiro:receber': 'Contas a Receber'
+            }
+        },
+        relatorios: { 
+            label: 'Relatórios', icon: 'bar-chart-3',
+            subs: {
+                'relatorios:vendas': 'Relat. Vendas',
+                'relatorios:financeiro': 'Relat. Financeiro',
+                'relatorios:estoque': 'Relat. Estoque'
+            }
+        },
+        settings: { 
+            label: 'Configurações', icon: 'settings',
+            subs: {
+                'settings:geral': 'Loja/Dados',
+                'settings:vendedores': 'Vendedores',
+                'settings:maquininhas': 'Maquininhas',
+                'settings:usuarios': 'Usuários',
+                'settings:contas': 'Contas Bancárias'
+            }
+        }
     };
 
     document.addEventListener("DOMContentLoaded", () => { carregarDados(); });
@@ -94,15 +115,31 @@
             
             // Inicializa grid de módulos
             const grid = document.getElementById('modulos-grid');
-            grid.innerHTML = Object.entries(ALL_MODULES).map(([id, info]) => `
-                <label class="flex items-center p-2 rounded-lg border border-slate-200 bg-white hover:border-blue-400 cursor-pointer transition-all group">
-                    <input type="checkbox" name="module-item" value="${id}" class="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500">
-                    <div class="ml-3 flex items-center">
-                        <i data-lucide="${info.icon}" class="w-4 h-4 text-slate-400 group-hover:text-blue-500 mr-2"></i>
-                        <span class="text-xs font-medium text-slate-700">${info.label}</span>
+            let html = '';
+            
+            for (const [id, info] of Object.entries(MODULE_STRUCTURE)) {
+                html += `
+                <div class="col-span-1 sm:col-span-2 mt-2 first:mt-0">
+                    <label class="flex items-center p-2 rounded-lg border border-slate-200 bg-white hover:border-blue-400 cursor-pointer transition-all group">
+                        <input type="checkbox" name="module-item" value="${id}" class="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500" onchange="toggleSubs(this, '${id}')">
+                        <div class="ml-3 flex items-center">
+                            <i data-lucide="${info.icon}" class="w-4 h-4 text-slate-400 group-hover:text-blue-500 mr-2"></i>
+                            <span class="text-xs font-bold text-slate-800">${info.label}</span>
+                        </div>
+                    </label>
+                    ${info.subs ? `
+                    <div class="ml-8 mt-1 grid grid-cols-1 sm:grid-cols-2 gap-1" id="subs-${id}">
+                        ${Object.entries(info.subs).map(([subId, subLabel]) => `
+                            <label class="flex items-center p-1.5 rounded-md hover:bg-slate-100 cursor-pointer transition-colors">
+                                <input type="checkbox" name="module-item" value="${subId}" data-parent="${id}" class="w-3.5 h-3.5 text-blue-500 rounded border-slate-300">
+                                <span class="ml-2 text-[11px] text-slate-600">${subLabel}</span>
+                            </label>
+                        `).join('')}
                     </div>
-                </label>
-            `).join('');
+                    ` : ''}
+                </div>`;
+            }
+            grid.innerHTML = html;
             
             lucide.createIcons();
             renderTable();
@@ -110,6 +147,13 @@
             console.error(e);
             showToast('Erro ao carregar planos', 'error');
         }
+    }
+
+    function toggleSubs(el, moduleId) {
+        const container = document.getElementById(`subs-${moduleId}`);
+        if (!container) return;
+        const checkboxes = container.querySelectorAll('input[type="checkbox"]');
+        checkboxes.forEach(cb => cb.checked = el.checked);
     }
 
     function renderTable() {
@@ -123,7 +167,20 @@
             return;
         }
 
-        grid.innerHTML = views.map(p => `
+        // Helper para pegar labels formatados
+        const getLabel = (mId) => {
+            if (MODULE_STRUCTURE[mId]) return MODULE_STRUCTURE[mId].label;
+            const parentId = mId.split(':')[0];
+            if (MODULE_STRUCTURE[parentId]?.subs?.[mId]) return MODULE_STRUCTURE[parentId].subs[mId];
+            return mId;
+        };
+
+        grid.innerHTML = views.map(p => {
+            const modulosList = p.modulos.split(',').map(m => m.trim()).filter(m => m);
+            // Filtra apenas módulos principais para a lista principal
+            const mainModules = modulosList.filter(m => !m.includes(':')).map(getLabel);
+
+            return `
             <div class="bg-white border ${p.ativo ? 'border-amber-200' : 'border-slate-200 opacity-75'} rounded-2xl p-6 shadow-sm hover:shadow-md transition-shadow relative group">
                 ${!p.ativo ? '<div class="absolute top-4 right-4 bg-slate-100 text-slate-500 text-[10px] px-2 py-1 rounded font-bold tracking-widest uppercase">Inativo</div>' : ''}
                 
@@ -141,7 +198,7 @@
                         <i data-lucide="blocks" class="w-4 h-4 text-emerald-500 mr-2 mt-0.5 shrink-0"></i>
                         <span class="leading-tight">Módulos: <br>
                             <span class="text-xs text-slate-500">
-                                ${p.modulos.split(',').map(m => ALL_MODULES[m.trim()]?.label || m).join(', ')}
+                                ${mainModules.join(', ')}
                             </span>
                         </span>
                     </li>
@@ -152,8 +209,8 @@
                         <i data-lucide="edit-3" class="w-4 h-4 mr-1"></i> Editar Plano
                     </button>
                 </div>
-            </div>
-        `).join('');
+            </div>`;
+        }).join('');
         lucide.createIcons();
     }
 

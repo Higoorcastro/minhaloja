@@ -53,8 +53,7 @@ limiter = Limiter(
     storage_uri='memory://'
 )
 
-ALL_MODULES = ['dashboard','pdv','vendas','os','produtos',
-               'clientes','financeiro','receber','relatorios','settings']
+ALL_MODULES = ['dashboard','pdv','vendas', 'os', 'produtos', 'clientes', 'financeiro', 'relatorios', 'settings']
 
 
 # ── Database ───────────────────────────────────────────────────────────────

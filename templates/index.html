@@ -2149,13 +2149,22 @@
     const ALL_MODULE_LABELS = {
       dashboard: 'Dashboard', pdv: 'Ponto de Venda', vendas: 'Vendas',
       os: 'Ordem de Serviço', produtos: 'Produtos', clientes: 'Clientes',
-      financeiro: 'Financeiro', receber: 'A Receber', relatorios: 'Relatórios',
+      financeiro: 'Financeiro', relatorios: 'Relatórios',
       settings: 'Configurações'
     };
     const ALL_MODULE_ICONS = {
       dashboard: '🏠', pdv: '🛒', vendas: '📋', os: '🔧', produtos: '📦',
-      clientes: '👥', financeiro: '💰', receber: '💳', relatorios: '📊',
+      clientes: '👥', financeiro: '💰', relatorios: '📊',
       settings: '⚙️'
+    };
+
+    const MODULE_SUBS = {
+      financeiro: { 'financeiro:fluxo': 'Fluxo de Caixa', 'financeiro:receber': 'Contas a Receber' },
+      relatorios: { 'relatorios:vendas': 'Relat. Vendas', 'relatorios:financeiro': 'Relat. Financeiro', 'relatorios:estoque': 'Relat. Estoque' },
+      settings: { 
+        'settings:geral': 'Loja/Dados', 'settings:vendedores': 'Vendedores', 
+        'settings:maquininhas': 'Maquininhas', 'settings:usuarios': 'Usuários', 'settings:contas': 'Contas' 
+      }
     };
 
     const fmt = n => 'R$ ' + parseFloat(n || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -2525,28 +2534,74 @@
 
     function buildPermGrid(papel, permissoesSelecionadas = []) {
       const isAdmin = papel === 'admin';
-      // Exibe todos os módulos do sistema
-      const planoModulos = Object.keys(ALL_MODULE_LABELS);
+      const mainModules = Object.keys(ALL_MODULE_LABELS);
+      
       return `
-    <div class="section-title" style="margin-top:4px">Permissões por Módulo</div>
-    ${isAdmin ? `<div style="font-size:12px;color:var(--green);margin-bottom:8px">✅ Administrador tem acesso total a todos os módulos automaticamente.</div>` : ''}
-    <div class="perm-grid" id="perm-grid">
-      ${planoModulos.map(m => {
+    <div class="section-title" style="margin-top:4px">Permissões de Acesso</div>
+    ${isAdmin ? `<div style="font-size:12px;color:var(--green);margin-bottom:8px">✅ Administrador tem acesso total a tudo.</div>` : ''}
+    <div class="perm-grid-v2">
+      ${mainModules.map(m => {
         const checked = isAdmin || permissoesSelecionadas.includes(m);
+        const subs = MODULE_SUBS[m] || {};
         return `
-          <div class="perm-item ${checked ? 'checked' : ''} ${isAdmin ? 'admin-locked' : ''}"
-               onclick="${isAdmin ? '' : `togglePerm(this,'${m}')`}" data-module="${m}">
+        <div class="perm-group" style="background:var(--bg3); border:1px solid var(--border); border-radius:8px; padding:10px; margin-bottom:8px">
+          <div class="perm-item ${checked ? 'checked' : ''} ${isAdmin ? 'admin-locked' : ''}" 
+               onclick="${isAdmin ? '' : `togglePerm(this,'${m}')`}" data-module="${m}" style="background:none; border:none; padding:0">
             <div class="perm-check">${checked ? '✓' : ''}</div>
-            <span class="perm-label">${ALL_MODULE_ICONS[m] || '•'} ${ALL_MODULE_LABELS[m] || m}</span>
-          </div>`;
+            <span class="perm-label" style="font-weight:700">${ALL_MODULE_ICONS[m]} ${ALL_MODULE_LABELS[m]}</span>
+          </div>
+          
+          ${Object.keys(subs).length ? `
+          <div class="perm-subs" style="margin-left:26px; margin-top:8px; display:grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap:6px">
+            ${Object.entries(subs).map(([subId, subLabel]) => {
+              const subChecked = isAdmin || permissoesSelecionadas.includes(subId);
+              return `
+              <div class="perm-item sub-perm ${subChecked ? 'checked' : ''} ${isAdmin ? 'admin-locked' : ''}" 
+                   onclick="${isAdmin ? '' : `togglePerm(this,'${subId}')`}" data-module="${subId}" style="padding:4px 8px; font-size:11px">
+                <div class="perm-check" style="width:14px; height:14px; font-size:9px">${subChecked ? '✓' : ''}</div>
+                <span class="perm-label">${subLabel}</span>
+              </div>`;
+            }).join('')}
+          </div>` : ''}
+        </div>`;
       }).join('')}
     </div>`;
     }
 
+    function toggleSubPerms(parentModule, isChecked) {
+      const subs = MODULE_SUBS[parentModule];
+      if (!subs) return;
+      Object.keys(subs).forEach(subId => {
+        const el = document.querySelector(`#modal-body .perm-item[data-module="${subId}"]`);
+        if (el) {
+          if (isChecked) el.classList.add('checked');
+          else el.classList.remove('checked');
+          const check = el.querySelector('.perm-check');
+          if (check) check.textContent = isChecked ? '✓' : '';
+        }
+      });
+    }
+
     function togglePerm(el, module) {
       el.classList.toggle('checked');
+      const isChecked = el.classList.contains('checked');
       const check = el.querySelector('.perm-check');
-      check.textContent = el.classList.contains('checked') ? '✓' : '';
+      if (check) check.textContent = isChecked ? '✓' : '';
+      
+      // Se for um módulo principal, toggle nos subs
+      if (MODULE_SUBS[module]) {
+        toggleSubPerms(module, isChecked);
+      } else if (module.includes(':')) {
+        // Se for um sub, e foi marcado, garante que o pai está marcado
+        if (isChecked) {
+          const parentId = module.split(':')[0];
+          const parentEl = document.querySelector(`#modal-body .perm-item[data-module="${parentId}"]`);
+          if (parentEl && !parentEl.classList.contains('checked')) {
+            parentEl.classList.add('checked');
+            parentEl.querySelector('.perm-check').textContent = '✓';
+          }
+        }
+      }
     }
 
     function onPapelChange() {
@@ -3543,19 +3598,26 @@
     let currentFinTab = 'fluxo';
 
     async function renderFinanceiro() {
-      const hasFinanceiro = currentUser.papel === 'admin' || currentUser.permissions.includes('financeiro');
-      const hasReceber = currentUser.papel === 'admin' || currentUser.permissions.includes('receber');
+      const isAdmin = currentUser.papel === 'admin';
+      const hasFluxo = isAdmin || currentUser.permissions.includes('financeiro:fluxo');
+      const hasReceber = isAdmin || currentUser.permissions.includes('financeiro:receber');
 
-      // Default to what the user has access to
-      if (!hasFinanceiro && hasReceber) currentFinTab = 'receber';
-      else if (hasFinanceiro) currentFinTab = 'fluxo';
+      // Se não tem nenhuma aba liberada, mas tem o módulo principal, redireciona para a primeira que encontrar
+      if (!hasFluxo && !hasReceber) {
+        // Fallback se o módulo está liberado mas nenhuma aba específica está no plano (não deveria ocorrer)
+        notify('Nenhuma funcionalidade do financeiro liberada no seu plano', 'warning');
+      }
+
+      if (currentFinTab === 'fluxo' && !hasFluxo && hasReceber) currentFinTab = 'receber';
+      if (currentFinTab === 'receber' && !hasReceber && hasFluxo) currentFinTab = 'fluxo';
 
       updateFinanceiroView();
     }
 
     async function updateFinanceiroView() {
-      const hasFinanceiro = currentUser.papel === 'admin' || currentUser.permissions.includes('financeiro');
-      const hasReceber = currentUser.papel === 'admin' || currentUser.permissions.includes('receber');
+      const isAdmin = currentUser.papel === 'admin';
+      const hasFluxo = isAdmin || currentUser.permissions.includes('financeiro:fluxo');
+      const hasReceber = isAdmin || currentUser.permissions.includes('financeiro:receber');
 
       // Topbar Actions
       let actionsHtml = '';
@@ -3570,8 +3632,8 @@
       // Layout with Tabs
       document.getElementById('content').innerHTML = `
         <div class="tabs-wrap">
-          ${hasFinanceiro ? `<div class="tab-item ${currentFinTab === 'fluxo' ? 'active' : ''}" onclick="switchFinTab('fluxo')">💸 Fluxo de Caixa</div>` : ''}
-          ${hasReceber ? `<div class="tab-item ${currentFinTab === 'receber' ? 'active' : ''}" onclick="switchFinTab('receber')">💰 Contas a Receber</div>` : ''}
+          ${hasFluxo ? `<div class="tab-item ${currentFinTab === 'fluxo' ? 'active' : ''}" onclick="switchFinTab('fluxo')">📊 Fluxo de Caixa</div>` : ''}
+          ${hasReceber ? `<div class="tab-item ${currentFinTab === 'receber' ? 'active' : ''}" onclick="switchFinTab('receber')">💳 Contas a Receber</div>` : ''}
         </div>
         <div id="fin-tab-content">
           <div class="empty"><div class="empty-icon">⏳</div><p>Carregando...</p></div>
@@ -3848,14 +3910,16 @@
         navigate('dashboard');
         return;
       }
+      const isAdmin = currentUser.papel === 'admin';
+      
       document.getElementById('content').innerHTML = `
         <div class="glass-card" style="max-width: 800px; margin: 0 auto;">
           <div style="display:flex; border-bottom:1px solid var(--border); margin-bottom:20px;">
-            <div id="tab-geral" class="nav-item active" style="padding:10px 20px; cursor:pointer;" onclick="switchSettingsTab('geral')">Loja</div>
-            <div id="tab-vendedores" class="nav-item" style="padding:10px 20px; cursor:pointer;" onclick="switchSettingsTab('vendedores')">Vendedores</div>
-            <div id="tab-maquininhas" class="nav-item" style="padding:10px 20px; cursor:pointer;" onclick="switchSettingsTab('maquininhas')">Maquininhas / Taxas</div>
-            <div id="tab-usuarios" class="nav-item" style="padding:10px 20px; cursor:pointer;" onclick="switchSettingsTab('usuarios')">Usuários</div>
-            <div id="tab-contas" class="nav-item" style="padding:10px 20px; cursor:pointer;" onclick="switchSettingsTab('contas')">&#128181; Contas</div>
+            ${isAdmin || currentUser.permissions.includes('settings:geral') ? `<div id="tab-geral" class="nav-item active" style="padding:10px 20px; cursor:pointer;" onclick="switchSettingsTab('geral')">Loja</div>` : ''}
+            ${isAdmin || currentUser.permissions.includes('settings:vendedores') ? `<div id="tab-vendedores" class="nav-item" style="padding:10px 20px; cursor:pointer;" onclick="switchSettingsTab('vendedores')">Vendedores</div>` : ''}
+            ${isAdmin || currentUser.permissions.includes('settings:maquininhas') ? `<div id="tab-maquininhas" class="nav-item" style="padding:10px 20px; cursor:pointer;" onclick="switchSettingsTab('maquininhas')">Maquininhas / Taxas</div>` : ''}
+            ${isAdmin || currentUser.permissions.includes('settings:usuarios') ? `<div id="tab-usuarios" class="nav-item" style="padding:10px 20px; cursor:pointer;" onclick="switchSettingsTab('usuarios')">Usuários</div>` : ''}
+            ${isAdmin || currentUser.permissions.includes('settings:contas') ? `<div id="tab-contas" class="nav-item" style="padding:10px 20px; cursor:pointer;" onclick="switchSettingsTab('contas')">💵 Contas</div>` : ''}
           </div>
           
           <div id="settings-tab-geral">
@@ -3874,32 +3938,32 @@
               
               <div style="flex:1; min-width:250px">
                 <div class="form-grid" style="grid-template-columns: 1fr;">
-              <div class="form-group">
-                <label>Nome da Loja</label>
-                <input type="text" id="cfg-shop-name" value="${shopConfig.shop_name || ''}" placeholder="Ex: Center Cell">
+                  <div class="form-group">
+                    <label>Nome da Loja</label>
+                    <input type="text" id="cfg-shop-name" value="${shopConfig.shop_name || ''}" placeholder="Ex: Center Cell">
+                  </div>
+                  <div class="form-group">
+                    <label>Endereço Completo</label>
+                    <input type="text" id="cfg-shop-address" value="${shopConfig.shop_address || ''}" placeholder="Rua, Número, Bairro, Cidade">
+                  </div>
+                  <div class="form-group">
+                    <label>WhatsApp / Telefone</label>
+                    <input type="text" id="cfg-shop-whatsapp" value="${shopConfig.shop_whatsapp || ''}" placeholder="(11) 99999-9999">
+                  </div>
+                  <div class="form-group">
+                    <label>Instagram</label>
+                    <input type="text" id="cfg-shop-instagram" value="${shopConfig.shop_instagram || ''}" placeholder="@sua_loja">
+                  </div>
+                </div>
+                
+                <div style="margin-top: 30px; display: flex; gap: 10px;">
+                  <button class="btn btn-primary" style="flex: 1; padding: 12px;" onclick="salvarConfig()">💾 Salvar Alterações</button>
+                </div>
               </div>
-              <div class="form-group">
-                <label>Endereço Completo</label>
-                <input type="text" id="cfg-shop-address" value="${shopConfig.shop_address || ''}" placeholder="Rua, Número, Bairro, Cidade">
-              </div>
-              <div class="form-group">
-                <label>WhatsApp / Telefone</label>
-                <input type="text" id="cfg-shop-whatsapp" value="${shopConfig.shop_whatsapp || ''}" placeholder="(11) 99999-9999">
-              </div>
-              <div class="form-group">
-                <label>Instagram</label>
-                <input type="text" id="cfg-shop-instagram" value="${shopConfig.shop_instagram || ''}" placeholder="@sua_loja">
-              </div>
-            </div>
-            
-            <div style="margin-top: 30px; display: flex; gap: 10px;">
-              <button class="btn btn-primary" style="flex: 1; padding: 12px;" onclick="salvarConfig()">💾 Salvar Alterações</button>
-            </div>
             </div>
           </div>
-        </div>
           
-        <div id="settings-tab-vendedores" style="display:none;">
+          <div id="settings-tab-vendedores" class="hidden">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
               <div class="section-title" style="margin:0;">Vendedores Ativos</div>
               <button class="btn btn-primary" onclick="novoVendedor()">+ Novo Vendedor</button>
@@ -3907,7 +3971,7 @@
             <div id="vend-tbl"></div>
           </div>
 
-          <div id="settings-tab-maquininhas" style="display:none;">
+          <div id="settings-tab-maquininhas" class="hidden">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
               <div class="section-title" style="margin:0;">Maquininhas de Cartão</div>
               <button class="btn btn-primary" onclick="novaMaquininha()">+ Nova Maquininha</button>
@@ -3918,7 +3982,7 @@
             </div>
           </div>
 
-          <div id="settings-tab-usuarios" style="display:none;">
+          <div id="settings-tab-usuarios" class="hidden">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
               <div class="section-title" style="margin:0;">Gerenciamento de Usuários</div>
               <div style="display:flex; gap:8px; align-items:center;">
@@ -3930,7 +3994,7 @@
               <div class="empty"><div class="empty-icon">⏳</div><p>Carregando...</p></div>
             </div>
           </div>
-          <div id="settings-tab-contas" style="display:none;">
+          <div id="settings-tab-contas" class="hidden">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
               <div class="section-title" style="margin:0;">Contas Financeiras</div>
               <div style="display:flex;gap:8px;">
@@ -3943,7 +4007,16 @@
           </div>
         </div>
       `;
-      // loadVendedoresView if tab switched (handled by switchSettingsTab default state if needed)
+
+      // Autoselect first visible tab
+      let firstTab = 'geral';
+      if (!isAdmin && !currentUser.permissions.includes('settings:geral')) {
+        if (currentUser.permissions.includes('settings:vendedores')) firstTab = 'vendedores';
+        else if (currentUser.permissions.includes('settings:maquininhas')) firstTab = 'maquininhas';
+        else if (currentUser.permissions.includes('settings:usuarios')) firstTab = 'usuarios';
+        else if (currentUser.permissions.includes('settings:contas')) firstTab = 'contas';
+      }
+      switchSettingsTab(firstTab);
     }
 
     async function loadUsuariosTab() {
@@ -3991,18 +4064,24 @@
     }
 
     function switchSettingsTab(tab) {
+      if (currentUser.papel !== 'admin' && !currentUser.permissions.includes(`settings:${tab}`)) {
+        notify('Sem permissão para esta aba', 'error'); return;
+      }
       ['geral', 'vendedores', 'maquininhas', 'usuarios', 'contas'].forEach(t => {
         document.getElementById('tab-' + t)?.classList.remove('active');
         const el = document.getElementById('settings-tab-' + t);
-        if (el) el.style.display = 'none';
+        if (el) el.classList.add('hidden');
       });
       document.getElementById('tab-' + tab)?.classList.add('active');
-      document.getElementById('settings-tab-' + tab).style.display = 'block';
-       if (tab === 'maquininhas') loadMaquininhasView();
-       if (tab === 'usuarios') loadUsuariosTab();
-       if (tab === 'vendedores') loadVendedoresView();
-       if (tab === 'contas') loadContasView();
-     }
+      const target = document.getElementById('settings-tab-' + tab);
+      if (target) target.classList.remove('hidden');
+
+      if (tab === 'geral') loadSettings();
+      if (tab === 'vendedores') loadVendedoresView();
+      if (tab === 'maquininhas') loadMaquininhasView();
+      if (tab === 'contas') loadContasView();
+      if (tab === 'usuarios') loadUsuariosTab();
+    }
 
     async function loadContasView() {
       const contas = await api('/api/contas') || [];
