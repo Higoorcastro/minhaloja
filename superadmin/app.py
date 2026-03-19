@@ -10,7 +10,7 @@ from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from dotenv import load_dotenv
 
-from models import db, SuperadminUsuario, Plano, Tenant, TenantUsuario
+from models import db, SuperadminUsuario, Plano, Tenant, TenantUsuario, ContatoLead
 from auth import require_superadmin
 
 load_dotenv()
@@ -107,6 +107,11 @@ def planos_page():
 @require_superadmin
 def usuarios_page():
     return render_template('sa_usuarios.html')
+
+@app.route('/contatos')
+@require_superadmin
+def contatos_page():
+    return render_template('sa_contatos.html')
 
 # ── API Auth ───────────────────────────────────────────────────────────────
 @app.route('/api/auth/login', methods=['POST'])
@@ -421,6 +426,89 @@ def api_tenant_user_update(uid):
         u.ativo = d['ativo']
     db.session.commit()
     return jsonify({'ok': True})
+
+# ── API Contatos (público — recebe leads da landing page) ─────────────────
+LANDING_ORIGIN = os.environ.get('LANDING_ORIGIN', '*')
+
+def _cors_headers(response):
+    response.headers['Access-Control-Allow-Origin'] = LANDING_ORIGIN
+    response.headers['Access-Control-Allow-Methods'] = 'POST, OPTIONS'
+    response.headers['Access-Control-Allow-Headers'] = 'Content-Type'
+    return response
+
+@app.route('/api/contato', methods=['POST', 'OPTIONS'])
+@limiter.limit('5 per hour', methods=['POST'])
+def api_contato_create():
+    if request.method == 'OPTIONS':
+        return _cors_headers(app.make_response(('', 204)))
+
+    try:
+        d = request.json or {}
+
+        # Honeypot: campo oculto preenchido = bot
+        if d.get('website'):
+            return _cors_headers(jsonify({'ok': True}))
+
+        nome = (d.get('nome') or '').strip()
+        email = (d.get('email') or '').strip().lower()
+        if not nome or not email or '@' not in email:
+            return _cors_headers(
+                jsonify({'ok': False, 'message': 'Nome e e-mail são obrigatórios'})
+            ), 400
+
+        lead = ContatoLead(
+            nome=nome,
+            email=email,
+            telefone=(d.get('telefone') or '').strip() or None,
+            empresa=(d.get('empresa') or '').strip() or None,
+            plano_interesse=(d.get('plano_interesse') or '').strip() or None,
+            mensagem=(d.get('mensagem') or '').strip() or None,
+        )
+        db.session.add(lead)
+        db.session.commit()
+        return _cors_headers(jsonify({'ok': True}))
+    except Exception as e:
+        db.session.rollback()
+        return _cors_headers(
+            jsonify({'ok': False, 'message': 'Erro interno, tente novamente.'})
+        ), 500
+
+
+@app.route('/api/contatos', methods=['GET'])
+@require_superadmin
+def api_contatos_list():
+    status_filter = request.args.get('status')
+    query = ContatoLead.query
+    if status_filter:
+        query = query.filter_by(status=status_filter)
+    leads = query.order_by(ContatoLead.criado_em.desc()).all()
+    return jsonify([{
+        'id': l.id,
+        'nome': l.nome,
+        'email': l.email,
+        'telefone': l.telefone,
+        'empresa': l.empresa,
+        'plano_interesse': l.plano_interesse,
+        'mensagem': l.mensagem,
+        'status': l.status,
+        'criado_em': l.criado_em.strftime('%d/%m/%Y %H:%M'),
+    } for l in leads])
+
+
+@app.route('/api/contatos/<int:cid>', methods=['PUT', 'DELETE'])
+@require_superadmin
+def api_contato_update(cid):
+    lead = ContatoLead.query.get_or_404(cid)
+    if request.method == 'DELETE':
+        db.session.delete(lead)
+        db.session.commit()
+        return jsonify({'ok': True})
+    d = request.json or {}
+    if 'status' in d:
+        lead.status = d['status']
+    db.session.commit()
+    return jsonify({'ok': True})
+
 
 def init_db():
     with app.app_context():

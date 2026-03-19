@@ -59,6 +59,18 @@ services:
     networks:
       - minhaloja_net
 
+  landing:
+    image: nginx:alpine
+    container_name: minhaloja_landing
+    volumes:
+      - ./landing:/usr/share/nginx/html:ro
+      - ./static/img:/usr/share/nginx/html/static/img:ro
+    ports:
+      - "5680:80"
+    restart: unless-stopped
+    networks:
+      - minhaloja_net
+
 volumes:
   postgres_data:
 

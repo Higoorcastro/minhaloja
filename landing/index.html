@@ -1,0 +1,1586 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MinhaLoja — Sistema de Gestão Comercial Completo</title>
+<meta name="description" content="PDV, estoque, financeiro, ordens de serviço e relatórios em um único sistema. Feito para pequenas e médias empresas que querem crescer com organização.">
+<meta property="og:title" content="MinhaLoja — Sistema de Gestão Comercial Completo">
+<meta property="og:description" content="PDV, estoque, financeiro, ordens de serviço e relatórios em um único sistema.">
+<meta property="og:type" content="website">
+<link rel="icon" href="../static/img/favicon.ico" type="image/x-icon">
+
+<!-- ═══════════════════════════════════════
+     ATENÇÃO: substitua pelo domínio do
+     seu Super Admin antes de publicar.
+════════════════════════════════════════ -->
+<script>const SA_API = "https://admin-lojaup.ddns.net";</script>
+
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
+
+/* ══════════════════════════════════════
+   RESET & TOKENS
+══════════════════════════════════════ */
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:     #0d1117;
+  --bg2:    #161b22;
+  --bg3:    #21262d;
+  --bg4:    #30363d;
+  --border: #30363d;
+  --border2:#484f58;
+  --text:   #e6edf3;
+  --text2:  #8b949e;
+  --text3:  #6e7681;
+  --blue:   #3b82f6;
+  --blue2:  #58a6ff;
+  --accent: #1d4ed8;
+  --accent2:#2563eb;
+  --purple: #7c3aed;
+  --purple2:#9333ea;
+  --green:  #22c55e;
+  --teal:   #0f766e;
+  --radius: 12px;
+}
+html{scroll-behavior:smooth}
+body{
+  background:var(--bg);
+  color:var(--text);
+  font-family:'Sora',sans-serif;
+  font-size:16px;
+  line-height:1.6;
+  overflow-x:hidden;
+}
+
+/* ══════════════════════════════════════
+   BACKGROUND GRID
+══════════════════════════════════════ */
+body::before{
+  content:'';position:fixed;inset:0;z-index:0;
+  background-image:
+    linear-gradient(rgba(59,130,246,.035) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(59,130,246,.035) 1px,transparent 1px);
+  background-size:48px 48px;
+  pointer-events:none;
+}
+
+/* ══════════════════════════════════════
+   ORBS / GLOWS
+══════════════════════════════════════ */
+.orb{position:fixed;border-radius:50%;filter:blur(100px);pointer-events:none;z-index:0}
+.orb1{width:700px;height:700px;background:radial-gradient(circle,rgba(29,78,216,.25),transparent);top:-200px;left:-200px}
+.orb2{width:500px;height:500px;background:radial-gradient(circle,rgba(124,58,237,.2),transparent);bottom:-100px;right:-100px}
+.orb3{width:400px;height:400px;background:radial-gradient(circle,rgba(15,118,110,.15),transparent);top:40%;left:60%}
+
+/* ══════════════════════════════════════
+   UTILS
+══════════════════════════════════════ */
+.container{max-width:1160px;margin:0 auto;padding:0 24px;position:relative;z-index:1}
+.section{padding:100px 0}
+.section-tag{
+  display:inline-flex;align-items:center;gap:8px;
+  background:rgba(59,130,246,.12);border:1px solid rgba(59,130,246,.25);
+  color:var(--blue2);font-size:12px;font-weight:600;letter-spacing:.08em;
+  text-transform:uppercase;padding:6px 14px;border-radius:999px;
+  margin-bottom:20px;
+}
+.section-tag svg{width:14px;height:14px}
+h2.section-title{
+  font-size:clamp(28px,4vw,42px);font-weight:800;letter-spacing:-.03em;
+  line-height:1.15;margin-bottom:16px;
+}
+h2.section-title span{
+  background:linear-gradient(135deg,var(--blue2),var(--purple2));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+}
+.section-sub{font-size:17px;color:var(--text2);max-width:560px;line-height:1.7}
+.section-center{text-align:center}
+.section-center .section-sub{margin:0 auto}
+.badge{
+  display:inline-block;background:rgba(34,197,94,.12);
+  border:1px solid rgba(34,197,94,.25);color:#4ade80;
+  font-size:11px;font-weight:700;letter-spacing:.06em;
+  text-transform:uppercase;padding:4px 10px;border-radius:999px;
+}
+
+/* ══════════════════════════════════════
+   NAVBAR
+══════════════════════════════════════ */
+#navbar{
+  position:fixed;top:0;left:0;right:0;z-index:100;
+  transition:all .3s;
+}
+#navbar.scrolled{
+  background:rgba(13,17,23,.9);
+  border-bottom:1px solid var(--border);
+  backdrop-filter:blur(16px);
+}
+.nav-inner{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:20px 0;transition:padding .3s;
+}
+#navbar.scrolled .nav-inner{padding:14px 0}
+.nav-logo{display:flex;align-items:center;gap:12px;text-decoration:none}
+.nav-logo-icon{
+  width:38px;height:38px;flex-shrink:0;
+  background:linear-gradient(135deg,var(--accent),var(--purple));
+  border-radius:10px;display:flex;align-items:center;justify-content:center;
+  font-size:20px;box-shadow:0 4px 16px rgba(29,78,216,.4);
+}
+.nav-logo-text{font-weight:800;font-size:17px;color:var(--text);letter-spacing:-.02em}
+.nav-logo-sub{font-size:10px;color:var(--text2);font-weight:400;display:block}
+.nav-links{display:flex;align-items:center;gap:32px}
+.nav-links a{
+  color:var(--text2);text-decoration:none;font-size:14px;font-weight:500;
+  transition:color .2s;
+}
+.nav-links a:hover{color:var(--text)}
+.nav-cta{display:flex;align-items:center;gap:12px}
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:8px;
+  padding:11px 22px;border-radius:var(--radius);font-family:'Sora',sans-serif;
+  font-size:14px;font-weight:600;cursor:pointer;border:none;
+  text-decoration:none;transition:all .2s;letter-spacing:.01em;
+}
+.btn-ghost{
+  background:transparent;color:var(--text2);
+  border:1px solid var(--border2);
+}
+.btn-ghost:hover{background:var(--bg3);color:var(--text);border-color:var(--border2)}
+.btn-primary{
+  background:linear-gradient(135deg,var(--accent),var(--accent2));
+  color:#fff;box-shadow:0 4px 16px rgba(29,78,216,.35);
+}
+.btn-primary:hover{transform:translateY(-1px);box-shadow:0 8px 24px rgba(29,78,216,.45)}
+.btn-primary:active{transform:none}
+.btn-wa{
+  background:linear-gradient(135deg,#16a34a,#15803d);
+  color:#fff;box-shadow:0 4px 16px rgba(22,163,74,.35);
+}
+.btn-wa:hover{transform:translateY(-1px);box-shadow:0 8px 24px rgba(22,163,74,.45)}
+.btn-lg{padding:16px 32px;font-size:16px;border-radius:14px}
+.btn-xl{padding:18px 38px;font-size:17px;border-radius:14px}
+
+@media(max-width:768px){
+  .nav-links{display:none}
+  .btn-ghost{display:none}
+}
+
+/* ══════════════════════════════════════
+   HERO
+══════════════════════════════════════ */
+#hero{
+  min-height:100vh;display:flex;align-items:center;
+  padding:140px 0 100px;position:relative;overflow:hidden;
+}
+.hero-inner{
+  display:grid;grid-template-columns:1fr 1fr;
+  align-items:center;gap:64px;
+}
+.hero-label{
+  display:inline-flex;align-items:center;gap:8px;
+  background:rgba(124,58,237,.15);border:1px solid rgba(124,58,237,.3);
+  color:#c084fc;font-size:12px;font-weight:600;
+  letter-spacing:.07em;text-transform:uppercase;
+  padding:6px 14px;border-radius:999px;margin-bottom:24px;
+}
+.hero-title{
+  font-size:clamp(36px,5vw,58px);font-weight:800;
+  letter-spacing:-.03em;line-height:1.1;margin-bottom:22px;
+}
+.hero-title .grad{
+  background:linear-gradient(135deg,var(--blue2) 0%,#a78bfa 50%,#60a5fa 100%);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+}
+.hero-sub{
+  font-size:18px;color:var(--text2);line-height:1.7;
+  margin-bottom:36px;max-width:480px;
+}
+.hero-actions{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.hero-trust{
+  display:flex;align-items:center;gap:16px;margin-top:36px;
+  padding-top:36px;border-top:1px solid var(--border);
+}
+.hero-trust-item{display:flex;align-items:center;gap:8px;color:var(--text2);font-size:13px}
+.hero-trust-item svg{color:var(--green);flex-shrink:0}
+.hero-visual{
+  position:relative;display:flex;align-items:center;justify-content:center;
+}
+.hero-screen{
+  background:var(--bg2);border:1px solid var(--border);
+  border-radius:18px;overflow:hidden;width:100%;max-width:520px;
+  box-shadow:0 32px 80px rgba(0,0,0,.6),0 0 0 1px rgba(59,130,246,.1);
+  position:relative;
+}
+.hero-screen-bar{
+  background:var(--bg3);border-bottom:1px solid var(--border);
+  padding:14px 18px;display:flex;align-items:center;gap:8px;
+}
+.screen-dot{width:12px;height:12px;border-radius:50%}
+.hero-screen-body{padding:24px 20px}
+.mock-card{
+  background:var(--bg3);border:1px solid var(--border);
+  border-radius:10px;padding:16px 18px;margin-bottom:12px;
+}
+.mock-kpi-row{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:12px}
+.mock-kpi{
+  background:var(--bg3);border:1px solid var(--border);
+  border-radius:8px;padding:12px;
+}
+.mock-kpi-label{font-size:10px;color:var(--text3);margin-bottom:4px;font-weight:600;letter-spacing:.04em;text-transform:uppercase}
+.mock-kpi-val{font-size:18px;font-weight:700;color:var(--text);font-family:'JetBrains Mono',monospace}
+.mock-kpi-val.green{color:var(--green)}
+.mock-kpi-val.blue{color:var(--blue2)}
+.mock-bar-row{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.mock-bar-label{font-size:11px;color:var(--text2);width:60px;flex-shrink:0;text-align:right}
+.mock-bar-bg{flex:1;height:8px;background:var(--bg4);border-radius:4px;overflow:hidden}
+.mock-bar-fill{height:100%;border-radius:4px;background:linear-gradient(90deg,var(--accent),var(--blue))}
+.mock-bar-val{font-size:11px;color:var(--text2);width:48px;font-family:'JetBrains Mono',monospace}
+.mock-row{display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)}
+.mock-row:last-child{border-bottom:none}
+.mock-row-left{font-size:12px;color:var(--text2)}
+.mock-row-right{font-size:13px;font-weight:600;color:var(--text);font-family:'JetBrains Mono',monospace}
+.mock-tag{
+  display:inline-block;font-size:10px;font-weight:600;
+  padding:2px 8px;border-radius:4px;
+}
+.mock-tag.green{background:rgba(34,197,94,.15);color:#4ade80}
+.mock-tag.blue{background:rgba(59,130,246,.15);color:var(--blue2)}
+.mock-tag.orange{background:rgba(234,179,8,.15);color:#fbbf24}
+.hero-glow{
+  position:absolute;inset:-2px;border-radius:20px;
+  background:linear-gradient(135deg,rgba(29,78,216,.2),rgba(124,58,237,.2));
+  filter:blur(20px);z-index:-1;
+}
+@media(max-width:900px){
+  .hero-inner{grid-template-columns:1fr;gap:48px}
+  .hero-visual{display:none}
+}
+
+/* ══════════════════════════════════════
+   STATS BAR
+══════════════════════════════════════ */
+#stats{
+  padding:40px 0;border-top:1px solid var(--border);
+  border-bottom:1px solid var(--border);
+  background:rgba(22,27,34,.6);backdrop-filter:blur(8px);
+  position:relative;z-index:1;
+}
+.stats-grid{
+  display:grid;grid-template-columns:repeat(4,1fr);
+  gap:32px;text-align:center;
+}
+.stat-num{
+  font-size:36px;font-weight:800;letter-spacing:-.02em;
+  background:linear-gradient(135deg,var(--blue2),#a78bfa);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+}
+.stat-label{font-size:13px;color:var(--text2);margin-top:4px}
+@media(max-width:640px){
+  .stats-grid{grid-template-columns:repeat(2,1fr)}
+}
+
+/* ══════════════════════════════════════
+   PROBLEM / SOLUTION
+══════════════════════════════════════ */
+#problema{background:var(--bg)}
+.problem-grid{
+  display:grid;grid-template-columns:1fr 1fr;
+  gap:16px;margin-top:56px;
+}
+.problem-card{
+  background:rgba(239,68,68,.07);border:1px solid rgba(239,68,68,.18);
+  border-radius:var(--radius);padding:24px;
+  display:flex;align-items:flex-start;gap:14px;
+}
+.problem-icon{
+  width:36px;height:36px;flex-shrink:0;
+  background:rgba(239,68,68,.15);border-radius:8px;
+  display:flex;align-items:center;justify-content:center;
+  color:#f87171;
+}
+.problem-text{font-size:14px;color:var(--text2);line-height:1.6}
+.problem-text strong{display:block;color:var(--text);font-weight:600;margin-bottom:4px;font-size:15px}
+.arrow-down{
+  display:flex;justify-content:center;align-items:center;
+  padding:32px 0;color:var(--text3);
+}
+.solution-grid{
+  display:grid;grid-template-columns:1fr 1fr;
+  gap:16px;
+}
+.solution-card{
+  background:rgba(34,197,94,.07);border:1px solid rgba(34,197,94,.18);
+  border-radius:var(--radius);padding:24px;
+  display:flex;align-items:flex-start;gap:14px;
+}
+.solution-icon{
+  width:36px;height:36px;flex-shrink:0;
+  background:rgba(34,197,94,.15);border-radius:8px;
+  display:flex;align-items:center;justify-content:center;
+  color:#4ade80;
+}
+.solution-text{font-size:14px;color:var(--text2);line-height:1.6}
+.solution-text strong{display:block;color:var(--text);font-weight:600;margin-bottom:4px;font-size:15px}
+@media(max-width:700px){
+  .problem-grid,.solution-grid{grid-template-columns:1fr}
+}
+
+/* ══════════════════════════════════════
+   MÓDULOS / FEATURES
+══════════════════════════════════════ */
+#modulos{background:var(--bg2)}
+.features-grid{
+  display:grid;grid-template-columns:repeat(3,1fr);
+  gap:20px;margin-top:56px;
+}
+.feature-card{
+  background:var(--bg);border:1px solid var(--border);
+  border-radius:16px;padding:28px 24px;
+  transition:all .25s;position:relative;overflow:hidden;
+}
+.feature-card::before{
+  content:'';position:absolute;top:0;left:0;right:0;
+  height:2px;background:linear-gradient(90deg,var(--accent),var(--purple));
+  opacity:0;transition:opacity .25s;
+}
+.feature-card:hover{
+  border-color:rgba(59,130,246,.35);
+  background:var(--bg2);
+  transform:translateY(-3px);
+  box-shadow:0 16px 40px rgba(0,0,0,.4);
+}
+.feature-card:hover::before{opacity:1}
+.feature-icon{
+  width:48px;height:48px;border-radius:12px;
+  background:linear-gradient(135deg,rgba(29,78,216,.2),rgba(124,58,237,.2));
+  border:1px solid rgba(59,130,246,.2);
+  display:flex;align-items:center;justify-content:center;
+  font-size:22px;margin-bottom:18px;
+}
+.feature-title{font-size:17px;font-weight:700;margin-bottom:8px;letter-spacing:-.01em}
+.feature-desc{font-size:14px;color:var(--text2);line-height:1.65}
+.feature-list{margin-top:14px;padding:0;list-style:none}
+.feature-list li{
+  font-size:13px;color:var(--text2);padding:5px 0;
+  display:flex;align-items:flex-start;gap:8px;
+  border-bottom:1px solid var(--border);
+}
+.feature-list li:last-child{border-bottom:none}
+.feature-list li::before{content:'→';color:var(--blue);flex-shrink:0;margin-top:1px}
+@media(max-width:900px){.features-grid{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:560px){.features-grid{grid-template-columns:1fr}}
+
+/* ══════════════════════════════════════
+   COMO FUNCIONA
+══════════════════════════════════════ */
+#como-funciona{background:var(--bg)}
+.steps-grid{
+  display:grid;grid-template-columns:repeat(3,1fr);
+  gap:32px;margin-top:56px;position:relative;
+}
+.steps-grid::before{
+  content:'';position:absolute;top:40px;left:calc(16.6% + 20px);
+  right:calc(16.6% + 20px);height:2px;
+  background:linear-gradient(90deg,var(--accent),var(--purple));
+  opacity:.4;
+}
+.step-card{
+  background:var(--bg2);border:1px solid var(--border);
+  border-radius:16px;padding:32px 28px;text-align:center;
+  position:relative;
+}
+.step-num{
+  width:64px;height:64px;border-radius:50%;margin:0 auto 20px;
+  background:linear-gradient(135deg,var(--accent),var(--purple));
+  display:flex;align-items:center;justify-content:center;
+  font-size:22px;font-weight:800;color:#fff;
+  box-shadow:0 8px 24px rgba(29,78,216,.4);
+}
+.step-title{font-size:17px;font-weight:700;margin-bottom:10px}
+.step-desc{font-size:14px;color:var(--text2);line-height:1.65}
+@media(max-width:700px){
+  .steps-grid{grid-template-columns:1fr}
+  .steps-grid::before{display:none}
+}
+
+/* ══════════════════════════════════════
+   PARA QUEM É
+══════════════════════════════════════ */
+#para-quem{background:var(--bg2)}
+.audience-grid{
+  display:grid;grid-template-columns:repeat(3,1fr);
+  gap:20px;margin-top:56px;
+}
+.audience-card{
+  background:var(--bg);border:1px solid var(--border);
+  border-radius:16px;padding:28px 24px;
+  transition:border-color .2s;
+}
+.audience-card:hover{border-color:rgba(59,130,246,.35)}
+.audience-emoji{font-size:36px;margin-bottom:14px}
+.audience-title{font-size:17px;font-weight:700;margin-bottom:8px}
+.audience-desc{font-size:14px;color:var(--text2);line-height:1.65}
+@media(max-width:700px){.audience-grid{grid-template-columns:1fr}}
+
+/* ══════════════════════════════════════
+   DEPOIMENTOS
+══════════════════════════════════════ */
+#depoimentos{background:var(--bg)}
+.testimonials-grid{
+  display:grid;grid-template-columns:repeat(3,1fr);
+  gap:20px;margin-top:56px;
+}
+.testimonial-card{
+  background:var(--bg2);border:1px solid var(--border);
+  border-radius:16px;padding:28px 24px;
+  position:relative;
+}
+.testimonial-stars{color:#fbbf24;font-size:16px;margin-bottom:14px;letter-spacing:2px}
+.testimonial-text{
+  font-size:15px;color:var(--text2);line-height:1.7;
+  margin-bottom:20px;font-style:italic;
+}
+.testimonial-author{
+  display:flex;align-items:center;gap:12px;
+  padding-top:16px;border-top:1px solid var(--border);
+}
+.testimonial-avatar{
+  width:40px;height:40px;border-radius:50%;
+  background:linear-gradient(135deg,var(--accent),var(--purple));
+  display:flex;align-items:center;justify-content:center;
+  font-size:16px;font-weight:700;color:#fff;flex-shrink:0;
+}
+.testimonial-name{font-size:14px;font-weight:600}
+.testimonial-role{font-size:12px;color:var(--text3)}
+@media(max-width:900px){.testimonials-grid{grid-template-columns:1fr}}
+
+/* ══════════════════════════════════════
+   PLANOS
+══════════════════════════════════════ */
+#planos{background:var(--bg2)}
+.plans-grid{
+  display:grid;grid-template-columns:repeat(3,1fr);
+  gap:24px;margin-top:56px;align-items:start;
+}
+.plan-card{
+  background:var(--bg);border:1px solid var(--border);
+  border-radius:20px;padding:32px 28px;
+  position:relative;transition:all .25s;
+}
+.plan-card:hover{border-color:rgba(59,130,246,.35);transform:translateY(-3px)}
+.plan-card.featured{
+  border-color:rgba(59,130,246,.5);
+  background:linear-gradient(160deg,rgba(29,78,216,.08),rgba(124,58,237,.06));
+  box-shadow:0 0 0 1px rgba(59,130,246,.15),0 24px 64px rgba(0,0,0,.4);
+}
+.plan-badge{
+  position:absolute;top:-13px;left:50%;transform:translateX(-50%);
+  background:linear-gradient(135deg,var(--accent),var(--purple));
+  color:#fff;font-size:11px;font-weight:700;
+  padding:5px 14px;border-radius:999px;letter-spacing:.06em;
+  white-space:nowrap;
+}
+.plan-name{font-size:16px;font-weight:700;margin-bottom:6px;color:var(--text2)}
+.plan-price{
+  font-size:42px;font-weight:800;letter-spacing:-.03em;
+  color:var(--text);line-height:1;margin-bottom:4px;
+}
+.plan-price sup{font-size:22px;vertical-align:top;margin-top:8px;margin-right:2px;color:var(--text2)}
+.plan-price span{font-size:16px;color:var(--text2);font-weight:400}
+.plan-desc{font-size:13px;color:var(--text2);margin-bottom:24px;line-height:1.5}
+.plan-divider{height:1px;background:var(--border);margin:20px 0}
+.plan-features{list-style:none;margin-bottom:28px}
+.plan-features li{
+  font-size:13px;color:var(--text2);padding:7px 0;
+  display:flex;align-items:flex-start;gap:10px;
+  border-bottom:1px solid var(--border);
+}
+.plan-features li:last-child{border-bottom:none}
+.plan-features li .check{color:var(--green);flex-shrink:0;margin-top:1px}
+.plan-features li .x{color:var(--text3);flex-shrink:0;margin-top:1px}
+.plan-features li.disabled{color:var(--text3)}
+.plan-cta{width:100%;text-align:center;justify-content:center}
+@media(max-width:900px){.plans-grid{grid-template-columns:1fr;max-width:440px;margin:56px auto 0}}
+
+/* ══════════════════════════════════════
+   FAQ
+══════════════════════════════════════ */
+#faq{background:var(--bg)}
+.faq-list{margin-top:56px;max-width:760px;margin-left:auto;margin-right:auto}
+.faq-item{
+  border:1px solid var(--border);border-radius:var(--radius);
+  margin-bottom:10px;overflow:hidden;
+}
+.faq-q{
+  width:100%;background:var(--bg2);border:none;
+  color:var(--text);font-family:'Sora',sans-serif;font-size:15px;font-weight:600;
+  padding:20px 24px;text-align:left;cursor:pointer;
+  display:flex;align-items:center;justify-content:space-between;gap:16px;
+  transition:background .2s;
+}
+.faq-q:hover{background:var(--bg3)}
+.faq-icon{
+  width:24px;height:24px;flex-shrink:0;color:var(--blue);
+  transition:transform .3s;font-size:20px;line-height:1;
+}
+.faq-item.open .faq-icon{transform:rotate(45deg)}
+.faq-a{
+  max-height:0;overflow:hidden;transition:max-height .35s ease;
+  background:var(--bg2);
+}
+.faq-item.open .faq-a{max-height:300px}
+.faq-a-inner{padding:0 24px 20px;font-size:14px;color:var(--text2);line-height:1.7}
+
+/* ══════════════════════════════════════
+   CTA FINAL
+══════════════════════════════════════ */
+#cta-final{
+  background:var(--bg2);
+  padding:100px 0;
+}
+.cta-box{
+  background:linear-gradient(135deg,rgba(29,78,216,.15),rgba(124,58,237,.15));
+  border:1px solid rgba(59,130,246,.2);
+  border-radius:24px;padding:64px 48px;text-align:center;
+  position:relative;overflow:hidden;
+}
+.cta-box::before{
+  content:'';position:absolute;inset:0;
+  background:radial-gradient(ellipse at 50% 0%,rgba(59,130,246,.12),transparent 70%);
+  pointer-events:none;
+}
+.cta-title{
+  font-size:clamp(28px,4vw,44px);font-weight:800;
+  letter-spacing:-.03em;margin-bottom:16px;line-height:1.2;
+}
+.cta-title span{
+  background:linear-gradient(135deg,var(--blue2),#a78bfa);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+}
+.cta-sub{font-size:17px;color:var(--text2);margin-bottom:36px}
+.cta-actions{display:flex;align-items:center;justify-content:center;gap:16px;flex-wrap:wrap}
+
+/* ══════════════════════════════════════
+   FOOTER
+══════════════════════════════════════ */
+footer{
+  background:var(--bg);border-top:1px solid var(--border);
+  padding:48px 0 32px;position:relative;z-index:1;
+}
+.footer-inner{
+  display:grid;grid-template-columns:2fr 1fr 1fr;
+  gap:48px;margin-bottom:40px;
+}
+.footer-brand .nav-logo{margin-bottom:14px;display:inline-flex}
+.footer-brand p{font-size:14px;color:var(--text2);line-height:1.6;max-width:280px}
+.footer-col h4{font-size:13px;font-weight:700;color:var(--text);letter-spacing:.04em;text-transform:uppercase;margin-bottom:14px}
+.footer-col a{
+  display:block;font-size:14px;color:var(--text2);
+  text-decoration:none;margin-bottom:8px;transition:color .2s;
+}
+.footer-col a:hover{color:var(--text)}
+.footer-bottom{
+  padding-top:24px;border-top:1px solid var(--border);
+  display:flex;align-items:center;justify-content:space-between;
+  font-size:13px;color:var(--text3);flex-wrap:wrap;gap:8px;
+}
+@media(max-width:700px){
+  .footer-inner{grid-template-columns:1fr;gap:32px}
+  .footer-bottom{flex-direction:column;text-align:center}
+}
+
+/* ══════════════════════════════════════
+   FLOATING CONTACT BUTTON
+══════════════════════════════════════ */
+#contact-float{
+  position:fixed;bottom:28px;right:28px;z-index:1000;
+  display:flex;align-items:center;gap:10px;
+  background:linear-gradient(135deg,var(--accent),var(--purple));
+  color:#fff;border:none;cursor:pointer;
+  padding:14px 20px;border-radius:999px;
+  box-shadow:0 8px 32px rgba(29,78,216,.5);
+  font-family:'Sora',sans-serif;font-size:14px;font-weight:600;
+  transition:all .25s;
+  animation:floatPulse 3s ease-in-out infinite;
+}
+#contact-float:hover{
+  transform:translateY(-2px) scale(1.04);
+  box-shadow:0 14px 40px rgba(29,78,216,.65);
+  animation:none;
+}
+@keyframes floatPulse{
+  0%,100%{box-shadow:0 8px 32px rgba(29,78,216,.5)}
+  50%{box-shadow:0 8px 48px rgba(124,58,237,.65)}
+}
+#contact-float svg{width:20px;height:20px;flex-shrink:0}
+@media(max-width:500px){
+  #contact-float span{display:none}
+  #contact-float{padding:16px}
+}
+
+/* ══════════════════════════════════════
+   MODAL DE CONTATO
+══════════════════════════════════════ */
+#modal-overlay{
+  position:fixed;inset:0;z-index:2000;
+  background:rgba(0,0,0,.7);backdrop-filter:blur(6px);
+  display:flex;align-items:center;justify-content:center;padding:20px;
+  opacity:0;pointer-events:none;transition:opacity .25s;
+}
+#modal-overlay.open{opacity:1;pointer-events:all}
+#modal-box{
+  background:var(--bg2);border:1px solid var(--border);
+  border-radius:20px;width:100%;max-width:520px;
+  box-shadow:0 32px 80px rgba(0,0,0,.6),0 0 0 1px rgba(59,130,246,.1);
+  transform:translateY(20px) scale(.97);transition:transform .3s;
+}
+#modal-overlay.open #modal-box{transform:none}
+.modal-header{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:22px 28px 0;
+}
+.modal-title{font-size:18px;font-weight:700;letter-spacing:-.01em}
+.modal-close{
+  background:rgba(255,255,255,.06);border:1px solid var(--border);
+  color:var(--text2);width:32px;height:32px;border-radius:8px;
+  display:flex;align-items:center;justify-content:center;
+  cursor:pointer;transition:all .2s;font-size:18px;line-height:1;
+}
+.modal-close:hover{background:rgba(255,255,255,.12);color:var(--text)}
+.modal-body{padding:20px 28px 28px}
+.field{margin-bottom:14px}
+.field label{
+  display:block;font-size:11px;font-weight:600;letter-spacing:.06em;
+  text-transform:uppercase;color:var(--text2);margin-bottom:6px;
+}
+.field input,.field select,.field textarea{
+  width:100%;background:rgba(255,255,255,.04);
+  border:1px solid var(--border);color:var(--text);
+  padding:10px 14px;border-radius:10px;
+  font-family:'Sora',sans-serif;font-size:14px;outline:none;
+  transition:all .2s;
+}
+.field input:focus,.field select:focus,.field textarea:focus{
+  border-color:var(--blue);background:rgba(59,130,246,.06);
+  box-shadow:0 0 0 3px rgba(59,130,246,.15);
+}
+.field input::placeholder,.field textarea::placeholder{color:var(--text3)}
+.field select option{background:var(--bg2);color:var(--text)}
+.field textarea{resize:vertical;min-height:90px}
+.fields-row{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media(max-width:480px){.fields-row{grid-template-columns:1fr}}
+.btn-submit{
+  width:100%;padding:13px;border-radius:10px;border:none;
+  background:linear-gradient(135deg,var(--accent),var(--accent2));
+  color:#fff;font-family:'Sora',sans-serif;font-size:15px;font-weight:600;
+  cursor:pointer;transition:all .2s;
+  box-shadow:0 4px 16px rgba(29,78,216,.35);
+  margin-top:4px;
+}
+.btn-submit:hover{transform:translateY(-1px);box-shadow:0 8px 24px rgba(29,78,216,.45)}
+.btn-submit:disabled{opacity:.6;cursor:not-allowed;transform:none}
+.form-feedback{
+  display:none;border-radius:8px;padding:10px 14px;
+  font-size:13px;text-align:center;margin-bottom:12px;
+}
+.form-feedback.success{
+  background:rgba(34,197,94,.1);border:1px solid rgba(34,197,94,.3);color:#4ade80;display:block;
+}
+.form-feedback.error{
+  background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);color:#fca5a5;display:block;
+}
+
+/* ══════════════════════════════════════
+   ANIMATIONS
+══════════════════════════════════════ */
+.fade-up{
+  opacity:0;transform:translateY(32px);
+  transition:opacity .6s ease,transform .6s ease;
+}
+.fade-up.visible{opacity:1;transform:none}
+</style>
+</head>
+<body>
+
+<!-- ORBS -->
+<div class="orb orb1"></div>
+<div class="orb orb2"></div>
+<div class="orb orb3"></div>
+
+<!-- ══════════════════════════════════════
+     NAVBAR
+══════════════════════════════════════ -->
+<nav id="navbar">
+  <div class="container">
+    <div class="nav-inner">
+      <a href="#" class="nav-logo">
+        <div class="nav-logo-icon">🏪</div>
+        <div>
+          <div class="nav-logo-text">MinhaLoja</div>
+          <span class="nav-logo-sub">Sistema de Gestão</span>
+        </div>
+      </a>
+      <div class="nav-links">
+        <a href="#modulos">Módulos</a>
+        <a href="#como-funciona">Como funciona</a>
+        <a href="#planos">Planos</a>
+        <a href="#faq">FAQ</a>
+      </div>
+      <div class="nav-cta">
+        <button class="btn btn-ghost" onclick="openForm()">Fale conosco</button>
+        <a href="#planos" class="btn btn-primary">Ver planos</a>
+      </div>
+    </div>
+  </div>
+</nav>
+
+<!-- ══════════════════════════════════════
+     HERO
+══════════════════════════════════════ -->
+<section id="hero">
+  <div class="container">
+    <div class="hero-inner">
+      <!-- Texto -->
+      <div class="fade-up">
+        <div class="hero-label">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+          Sistema 100% web · Multi-plataforma
+        </div>
+        <h1 class="hero-title">
+          Sua loja organizada,<br>
+          <span class="grad">seu lucro em foco</span>
+        </h1>
+        <p class="hero-sub">
+          PDV, estoque, financeiro, ordens de serviço e relatórios completos em um único sistema. Tudo que sua empresa precisa para vender mais e gastar menos tempo com burocracia.
+        </p>
+        <div class="hero-actions">
+          <button class="btn btn-primary btn-lg" onclick="openForm()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+            Solicitar demonstração
+          </button>
+          <a href="#modulos" class="btn btn-ghost btn-lg">Ver todos os módulos</a>
+        </div>
+        <div class="hero-trust">
+          <div class="hero-trust-item">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="16"><polyline points="20 6 9 17 4 12"/></svg>
+            Sem taxa de implantação
+          </div>
+          <div class="hero-trust-item">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="16" style="color:var(--green)"><polyline points="20 6 9 17 4 12"/></svg>
+            Suporte incluso
+          </div>
+          <div class="hero-trust-item">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="16" style="color:var(--green)"><polyline points="20 6 9 17 4 12"/></svg>
+            Cancele quando quiser
+          </div>
+        </div>
+      </div>
+      <!-- Mockup da tela -->
+      <div class="hero-visual fade-up" style="transition-delay:.15s">
+        <div class="hero-glow"></div>
+        <div class="hero-screen">
+          <div class="hero-screen-bar">
+            <div class="screen-dot" style="background:#f87171"></div>
+            <div class="screen-dot" style="background:#fbbf24"></div>
+            <div class="screen-dot" style="background:#4ade80"></div>
+            <span style="font-size:12px;color:var(--text3);margin-left:8px;font-family:'JetBrains Mono',monospace">Dashboard — MinhaLoja</span>
+          </div>
+          <div class="hero-screen-body">
+            <div class="mock-kpi-row">
+              <div class="mock-kpi">
+                <div class="mock-kpi-label">Vendas Hoje</div>
+                <div class="mock-kpi-val green">R$ 2.840</div>
+              </div>
+              <div class="mock-kpi">
+                <div class="mock-kpi-label">Ticket Médio</div>
+                <div class="mock-kpi-val blue">R$ 142</div>
+              </div>
+              <div class="mock-kpi">
+                <div class="mock-kpi-label">No Caixa</div>
+                <div class="mock-kpi-val">R$ 4.120</div>
+              </div>
+            </div>
+            <div class="mock-card">
+              <div style="font-size:11px;color:var(--text3);margin-bottom:10px;font-weight:600;letter-spacing:.04em;text-transform:uppercase">Vendas por produto</div>
+              <div class="mock-bar-row">
+                <div class="mock-bar-label">Produto A</div>
+                <div class="mock-bar-bg"><div class="mock-bar-fill" style="width:85%"></div></div>
+                <div class="mock-bar-val">R$ 980</div>
+              </div>
+              <div class="mock-bar-row">
+                <div class="mock-bar-label">Produto B</div>
+                <div class="mock-bar-bg"><div class="mock-bar-fill" style="width:62%"></div></div>
+                <div class="mock-bar-val">R$ 720</div>
+              </div>
+              <div class="mock-bar-row">
+                <div class="mock-bar-label">Produto C</div>
+                <div class="mock-bar-bg"><div class="mock-bar-fill" style="width:40%"></div></div>
+                <div class="mock-bar-val">R$ 460</div>
+              </div>
+            </div>
+            <div class="mock-card" style="padding:12px 14px">
+              <div style="font-size:11px;color:var(--text3);margin-bottom:8px;font-weight:600;letter-spacing:.04em;text-transform:uppercase">Últimas vendas</div>
+              <div class="mock-row">
+                <div class="mock-row-left">João Silva · PIX</div>
+                <div style="display:flex;align-items:center;gap:8px">
+                  <span class="mock-tag green">PAGO</span>
+                  <span class="mock-row-right">R$ 340,00</span>
+                </div>
+              </div>
+              <div class="mock-row">
+                <div class="mock-row-left">Maria Costa · Crédito</div>
+                <div style="display:flex;align-items:center;gap:8px">
+                  <span class="mock-tag blue">3×</span>
+                  <span class="mock-row-right">R$ 189,90</span>
+                </div>
+              </div>
+              <div class="mock-row">
+                <div class="mock-row-left">Pedro Souza · Débito</div>
+                <div style="display:flex;align-items:center;gap:8px">
+                  <span class="mock-tag green">PAGO</span>
+                  <span class="mock-row-right">R$ 97,50</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════
+     STATS
+══════════════════════════════════════ -->
+<section id="stats">
+  <div class="container">
+    <div class="stats-grid">
+      <div class="fade-up">
+        <div class="stat-num">9+</div>
+        <div class="stat-label">Módulos integrados</div>
+      </div>
+      <div class="fade-up" style="transition-delay:.1s">
+        <div class="stat-num">100+</div>
+        <div class="stat-label">Endpoints de API</div>
+      </div>
+      <div class="fade-up" style="transition-delay:.2s">
+        <div class="stat-num">25+</div>
+        <div class="stat-label">Tabelas de dados</div>
+      </div>
+      <div class="fade-up" style="transition-delay:.3s">
+        <div class="stat-num">24/7</div>
+        <div class="stat-label">Sistema disponível</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════
+     PROBLEMA / SOLUÇÃO
+══════════════════════════════════════ -->
+<section id="problema" class="section">
+  <div class="container">
+    <div class="section-center fade-up">
+      <div class="section-tag">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        O problema que resolvemos
+      </div>
+      <h2 class="section-title">Sua loja merece mais do que <span>planilhas e papéis</span></h2>
+      <p class="section-sub">Dificuldade de organização custa tempo, dinheiro e clientes. O MinhaLoja resolve isso.</p>
+    </div>
+
+    <div class="problem-grid" style="margin-top:56px">
+      <div class="problem-card fade-up">
+        <div class="problem-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></div>
+        <div class="problem-text"><strong>Controle de estoque no caderno</strong>Não sabe o que tem disponível, perde venda por falta de produto ou compra o que já tem em excesso.</div>
+      </div>
+      <div class="problem-card fade-up" style="transition-delay:.1s">
+        <div class="problem-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></div>
+        <div class="problem-text"><strong>Financeiro bagunçado</strong>Mistura gastos pessoais com os da empresa, não sabe se o mês foi bom ou ruim, e descobre os problemas tarde demais.</div>
+      </div>
+      <div class="problem-card fade-up" style="transition-delay:.2s">
+        <div class="problem-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></div>
+        <div class="problem-text"><strong>Ordens de serviço em papel</strong>Perde equipamentos, esquece prazo de entrega e não tem histórico do que foi feito em cada aparelho.</div>
+      </div>
+      <div class="problem-card fade-up" style="transition-delay:.3s">
+        <div class="problem-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></div>
+        <div class="problem-text"><strong>Relatórios inexistentes</strong>Toma decisões no "achismo" sem saber quais produtos vendem mais, quais clientes compram mais ou qual período é mais fraco.</div>
+      </div>
+    </div>
+
+    <div class="arrow-down fade-up">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="40" height="40"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg>
+    </div>
+
+    <div class="solution-grid">
+      <div class="solution-card fade-up">
+        <div class="solution-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="18"><polyline points="20 6 9 17 4 12"/></svg></div>
+        <div class="solution-text"><strong>Estoque em tempo real</strong>Toda venda, compra e ordem de serviço atualiza o estoque automaticamente. Alertas para produtos abaixo do mínimo.</div>
+      </div>
+      <div class="solution-card fade-up" style="transition-delay:.1s">
+        <div class="solution-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="18"><polyline points="20 6 9 17 4 12"/></svg></div>
+        <div class="solution-text"><strong>Financeiro completo e separado</strong>Contas, movimentações, contas a receber, despesas e fluxo de caixa em um painel só. Tudo organizado.</div>
+      </div>
+      <div class="solution-card fade-up" style="transition-delay:.2s">
+        <div class="solution-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="18"><polyline points="20 6 9 17 4 12"/></svg></div>
+        <div class="solution-text"><strong>OS digital com workflow</strong>Status em tempo real, checklist, histórico completo, peças utilizadas e controle de entrega — tudo digital.</div>
+      </div>
+      <div class="solution-card fade-up" style="transition-delay:.3s">
+        <div class="solution-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="18"><polyline points="20 6 9 17 4 12"/></svg></div>
+        <div class="solution-text"><strong>Relatórios prontos</strong>Vendas por período, top produtos, análise financeira, posição de estoque. Dados para decidir com segurança.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════
+     MÓDULOS
+══════════════════════════════════════ -->
+<section id="modulos" class="section">
+  <div class="container">
+    <div class="fade-up">
+      <div class="section-tag">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+        Tudo integrado
+      </div>
+      <h2 class="section-title">9 módulos que <span>trabalham juntos</span></h2>
+      <p class="section-sub">Cada módulo é completo por si só. Integrados, eles eliminam o retrabalho e mantêm tudo sincronizado automaticamente.</p>
+    </div>
+
+    <div class="features-grid">
+
+      <div class="feature-card fade-up">
+        <div class="feature-icon">📊</div>
+        <div class="feature-title">Dashboard</div>
+        <div class="feature-desc">Visão executiva da sua operação em tempo real, sem precisar abrir relatório algum.</div>
+        <ul class="feature-list">
+          <li>KPIs de vendas do dia, semana e mês</li>
+          <li>Saldo do caixa atualizado</li>
+          <li>Alertas de estoque baixo</li>
+          <li>Últimas movimentações</li>
+        </ul>
+      </div>
+
+      <div class="feature-card fade-up" style="transition-delay:.07s">
+        <div class="feature-icon">🛒</div>
+        <div class="feature-title">PDV — Ponto de Venda</div>
+        <div class="feature-desc">Interface de vendas rápida e intuitiva para o balcão. Feita para quem atende clientes em volume.</div>
+        <ul class="feature-list">
+          <li>Busca de produto por nome ou código</li>
+          <li>Desconto por item ou no total</li>
+          <li>Dinheiro, PIX, débito e crédito parcelado</li>
+          <li>Cálculo automático de taxa de cartão</li>
+          <li>Impressão de recibo</li>
+        </ul>
+      </div>
+
+      <div class="feature-card fade-up" style="transition-delay:.14s">
+        <div class="feature-icon">📋</div>
+        <div class="feature-title">Histórico de Vendas</div>
+        <div class="feature-desc">Rastreabilidade completa de cada transação com filtros avançados.</div>
+        <ul class="feature-list">
+          <li>Filtro por data, cliente e vendedor</li>
+          <li>Detalhamento de itens e pagamento</li>
+          <li>Cancelamento com registro de motivo</li>
+          <li>Comissionamento por vendedor</li>
+        </ul>
+      </div>
+
+      <div class="feature-card fade-up" style="transition-delay:.21s">
+        <div class="feature-icon">🔧</div>
+        <div class="feature-title">Ordens de Serviço</div>
+        <div class="feature-desc">Para assistências técnicas, oficinas e prestadores de serviço. Workflow completo do atendimento.</div>
+        <ul class="feature-list">
+          <li>Status: Aberta → Diagnóstico → Reparo → Concluída</li>
+          <li>Prioridade: Baixa, Normal, Alta, Urgente</li>
+          <li>Peças utilizadas com baixa de estoque</li>
+          <li>Checklist de procedimentos</li>
+          <li>Senha/PIN do dispositivo</li>
+        </ul>
+      </div>
+
+      <div class="feature-card fade-up" style="transition-delay:.28s">
+        <div class="feature-icon">📦</div>
+        <div class="feature-title">Produtos &amp; Estoque</div>
+        <div class="feature-desc">Catálogo centralizado com movimentação automática. Saiba o que tem no estoque sem contar na mão.</div>
+        <ul class="feature-list">
+          <li>Categorias customizáveis</li>
+          <li>Preço de custo e venda</li>
+          <li>Estoque mínimo com alerta</li>
+          <li>Múltiplas unidades (UN, KG, L, M, CX...)</li>
+          <li>Baixa automática via PDV, compras e OS</li>
+        </ul>
+      </div>
+
+      <div class="feature-card fade-up" style="transition-delay:.35s">
+        <div class="feature-icon">👥</div>
+        <div class="feature-title">Clientes</div>
+        <div class="feature-desc">Base de clientes organizada com histórico de atendimentos e dados de contato.</div>
+        <ul class="feature-list">
+          <li>CPF/CNPJ, telefone, e-mail, endereço</li>
+          <li>Cadastro rápido durante a venda</li>
+          <li>Histórico de compras e OS</li>
+          <li>Busca instantânea</li>
+        </ul>
+      </div>
+
+      <div class="feature-card fade-up" style="transition-delay:.42s">
+        <div class="feature-icon">💰</div>
+        <div class="feature-title">Financeiro Completo</div>
+        <div class="feature-desc">Substitui planilha, caderno e achismo. Controle real do fluxo de caixa da sua empresa.</div>
+        <ul class="feature-list">
+          <li>Múltiplas contas (caixa + bancos)</li>
+          <li>Contas a receber com parcial e vencimento</li>
+          <li>Registro de despesas por categoria</li>
+          <li>Compras a fornecedores</li>
+          <li>Transferência entre contas</li>
+          <li>Histórico completo de movimentações</li>
+        </ul>
+      </div>
+
+      <div class="feature-card fade-up" style="transition-delay:.49s">
+        <div class="feature-icon">📈</div>
+        <div class="feature-title">Relatórios</div>
+        <div class="feature-desc">Análises prontas para tomar decisões com dados, não no achismo.</div>
+        <ul class="feature-list">
+          <li>Vendas por dia, semana e mês</li>
+          <li>Top 20 produtos mais vendidos</li>
+          <li>Receitas, despesas e lucro bruto</li>
+          <li>Posição de estoque e valor total</li>
+          <li>Análise por forma de pagamento</li>
+        </ul>
+      </div>
+
+      <div class="feature-card fade-up" style="transition-delay:.56s">
+        <div class="feature-icon">⚙️</div>
+        <div class="feature-title">Configurações &amp; Usuários</div>
+        <div class="feature-desc">Controle total de quem acessa o quê. Cada funcionário vê apenas o que precisa.</div>
+        <ul class="feature-list">
+          <li>Perfis: Administrador e Operador</li>
+          <li>Permissões por módulo</li>
+          <li>Logo e nome da empresa</li>
+          <li>Taxas por forma de pagamento</li>
+          <li>Máquinas de cartão configuráveis</li>
+        </ul>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════
+     COMO FUNCIONA
+══════════════════════════════════════ -->
+<section id="como-funciona" class="section">
+  <div class="container">
+    <div class="section-center fade-up">
+      <div class="section-tag">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        Simples assim
+      </div>
+      <h2 class="section-title">Começa em <span>minutos, não semanas</span></h2>
+      <p class="section-sub">Sem instalação complexa, sem treinamento longo. Em três passos você já está operando.</p>
+    </div>
+    <div class="steps-grid">
+      <div class="step-card fade-up">
+        <div class="step-num">1</div>
+        <div class="step-title">Assine um plano</div>
+        <div class="step-desc">Escolha o plano ideal para o tamanho da sua operação. Sem contrato longo, cancele quando quiser.</div>
+      </div>
+      <div class="step-card fade-up" style="transition-delay:.15s">
+        <div class="step-num">2</div>
+        <div class="step-title">Configure sua loja</div>
+        <div class="step-desc">Cadastre seus produtos, usuários e configure as taxas de pagamento. Tudo pelo painel, sem técnico.</div>
+      </div>
+      <div class="step-card fade-up" style="transition-delay:.3s">
+        <div class="step-num">3</div>
+        <div class="step-title">Comece a vender</div>
+        <div class="step-desc">Abra o sistema em qualquer navegador, faça login e já pode usar o PDV, o financeiro e os relatórios.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════
+     PARA QUEM É
+══════════════════════════════════════ -->
+<section id="para-quem" class="section">
+  <div class="container">
+    <div class="section-center fade-up">
+      <div class="section-tag">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        Feito pra você
+      </div>
+      <h2 class="section-title">Para quem é o <span>MinhaLoja</span></h2>
+      <p class="section-sub">Desenvolvido para o dia a dia de quem tem loja física, assistência técnica ou presta serviços.</p>
+    </div>
+    <div class="audience-grid">
+      <div class="audience-card fade-up">
+        <div class="audience-emoji">🛍️</div>
+        <div class="audience-title">Lojas de varejo</div>
+        <div class="audience-desc">Roupas, calçados, eletrônicos, pet shop, papelaria, materiais de construção. Qualquer segmento que vende produto físico.</div>
+      </div>
+      <div class="audience-card fade-up" style="transition-delay:.1s">
+        <div class="audience-emoji">🔌</div>
+        <div class="audience-title">Assistências técnicas</div>
+        <div class="audience-desc">Celular, computador, eletrodomésticos, veículos. O módulo de OS foi projetado para o fluxo de uma assistência real.</div>
+      </div>
+      <div class="audience-card fade-up" style="transition-delay:.2s">
+        <div class="audience-emoji">🍽️</div>
+        <div class="audience-title">Serviços e prestadores</div>
+        <div class="audience-desc">Salões, borracharias, oficinas, estúdios. Controle de clientes, caixa e comissionamento de funcionários.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════
+     DEPOIMENTOS
+══════════════════════════════════════ -->
+<section id="depoimentos" class="section">
+  <div class="container">
+    <div class="section-center fade-up">
+      <div class="section-tag">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        Quem já usa
+      </div>
+      <h2 class="section-title">O que nossos <span>clientes dizem</span></h2>
+    </div>
+    <div class="testimonials-grid">
+      <div class="testimonial-card fade-up">
+        <div class="testimonial-stars">★★★★★</div>
+        <p class="testimonial-text">"Antes eu controlava o estoque num caderno e vivia com falta de produto. Agora recebo alerta quando está acabando. Simples assim."</p>
+        <div class="testimonial-author">
+          <div class="testimonial-avatar">C</div>
+          <div>
+            <div class="testimonial-name">Carlos Eduardo</div>
+            <div class="testimonial-role">Dono de loja de eletrônicos</div>
+          </div>
+        </div>
+      </div>
+      <div class="testimonial-card fade-up" style="transition-delay:.1s">
+        <div class="testimonial-stars">★★★★★</div>
+        <p class="testimonial-text">"O módulo de OS mudou minha assistência técnica. Consigo saber o status de cada aparelho em segundos e nunca mais perdi equipamento."</p>
+        <div class="testimonial-author">
+          <div class="testimonial-avatar">A</div>
+          <div>
+            <div class="testimonial-name">Ana Paula</div>
+            <div class="testimonial-role">Proprietária de assistência técnica</div>
+          </div>
+        </div>
+      </div>
+      <div class="testimonial-card fade-up" style="transition-delay:.2s">
+        <div class="testimonial-stars">★★★★★</div>
+        <p class="testimonial-text">"O relatório financeiro me mostrou que estava perdendo 8% de receita nas taxas de cartão sem perceber. Agora precfico no valor certo."</p>
+        <div class="testimonial-author">
+          <div class="testimonial-avatar">R</div>
+          <div>
+            <div class="testimonial-name">Ricardo Mendes</div>
+            <div class="testimonial-role">Dono de loja de roupas</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════
+     PLANOS
+══════════════════════════════════════ -->
+<section id="planos" class="section">
+  <div class="container">
+    <div class="section-center fade-up">
+      <div class="section-tag">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+        Sem surpresas
+      </div>
+      <h2 class="section-title">Planos para <span>todo tamanho de negócio</span></h2>
+      <p class="section-sub">Mensalidade fixa, sem taxa de implantação e sem contrato mínimo. Entre em contato para conhecer os valores.</p>
+    </div>
+    <div class="plans-grid">
+
+      <!-- Básico -->
+      <div class="plan-card fade-up">
+        <div class="plan-name">Básico</div>
+        <div class="plan-price">
+          <sup>R$</sup>sob consulta<span></span>
+        </div>
+        <div class="plan-desc">Ideal para quem está começando e precisa do essencial para operar.</div>
+        <div class="plan-divider"></div>
+        <ul class="plan-features">
+          <li><span class="check">✓</span> Dashboard</li>
+          <li><span class="check">✓</span> PDV completo</li>
+          <li><span class="check">✓</span> Produtos &amp; Estoque</li>
+          <li><span class="check">✓</span> Clientes</li>
+          <li><span class="check">✓</span> Até 2 usuários</li>
+          <li class="disabled"><span class="x">✗</span> Módulo Financeiro</li>
+          <li class="disabled"><span class="x">✗</span> Ordens de Serviço</li>
+          <li class="disabled"><span class="x">✗</span> Relatórios avançados</li>
+        </ul>
+        <button class="btn btn-ghost plan-cta" onclick="openForm('Básico')">Solicitar informações</button>
+      </div>
+
+      <!-- Profissional (destaque) -->
+      <div class="plan-card featured fade-up" style="transition-delay:.1s">
+        <div class="plan-badge">✦ Mais popular</div>
+        <div class="plan-name">Profissional</div>
+        <div class="plan-price">
+          <sup>R$</sup>sob consulta<span></span>
+        </div>
+        <div class="plan-desc">Para quem precisa de controle total da operação comercial e financeira.</div>
+        <div class="plan-divider"></div>
+        <ul class="plan-features">
+          <li><span class="check">✓</span> Tudo do plano Básico</li>
+          <li><span class="check">✓</span> Módulo Financeiro completo</li>
+          <li><span class="check">✓</span> Ordens de Serviço</li>
+          <li><span class="check">✓</span> Relatórios completos</li>
+          <li><span class="check">✓</span> Histórico de vendas</li>
+          <li><span class="check">✓</span> Até 5 usuários</li>
+          <li><span class="check">✓</span> Máquinas de cartão</li>
+          <li class="disabled"><span class="x">✗</span> Usuários ilimitados</li>
+        </ul>
+        <button class="btn btn-primary plan-cta" onclick="openForm('Profissional')">Solicitar informações</button>
+      </div>
+
+      <!-- Completo -->
+      <div class="plan-card fade-up" style="transition-delay:.2s">
+        <div class="plan-name">Completo</div>
+        <div class="plan-price">
+          <sup>R$</sup>sob consulta<span></span>
+        </div>
+        <div class="plan-desc">Para operações maiores que precisam de acesso total e múltiplos usuários.</div>
+        <div class="plan-divider"></div>
+        <ul class="plan-features">
+          <li><span class="check">✓</span> Todos os módulos</li>
+          <li><span class="check">✓</span> Usuários ilimitados</li>
+          <li><span class="check">✓</span> Permissões granulares</li>
+          <li><span class="check">✓</span> Múltiplas máquinas de cartão</li>
+          <li><span class="check">✓</span> Relatórios completos</li>
+          <li><span class="check">✓</span> Dashboard executivo</li>
+          <li><span class="check">✓</span> Suporte prioritário</li>
+          <li><span class="check">✓</span> Personalização da marca</li>
+        </ul>
+        <button class="btn btn-ghost plan-cta" onclick="openForm('Completo')">Solicitar informações</button>
+      </div>
+
+    </div>
+    <p style="text-align:center;margin-top:32px;font-size:14px;color:var(--text3)">
+      Todos os planos incluem suporte via WhatsApp · Sem taxa de implantação · Cancele quando quiser
+    </p>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════
+     FAQ
+══════════════════════════════════════ -->
+<section id="faq" class="section">
+  <div class="container">
+    <div class="section-center fade-up" style="margin-bottom:0">
+      <div class="section-tag">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        Dúvidas frequentes
+      </div>
+      <h2 class="section-title">Perguntas <span>frequentes</span></h2>
+    </div>
+    <div class="faq-list">
+
+      <div class="faq-item fade-up">
+        <button class="faq-q" onclick="toggleFAQ(this)">
+          Preciso instalar alguma coisa no computador?
+          <span class="faq-icon">+</span>
+        </button>
+        <div class="faq-a">
+          <div class="faq-a-inner">Não. O MinhaLoja é 100% web. Você acessa pelo navegador — Chrome, Firefox, Edge, Safari — em qualquer computador, tablet ou celular. Sem instalação, sem download, sem configuração de máquina.</div>
+        </div>
+      </div>
+
+      <div class="faq-item fade-up">
+        <button class="faq-q" onclick="toggleFAQ(this)">
+          Meu internet cair, eu perco os dados?
+          <span class="faq-icon">+</span>
+        </button>
+        <div class="faq-a">
+          <div class="faq-a-inner">Não. Todos os dados ficam salvos no servidor com PostgreSQL. A internet só é necessária para acessar o sistema. Quando a conexão voltar, tudo está lá, exatamente como você deixou.</div>
+        </div>
+      </div>
+
+      <div class="faq-item fade-up">
+        <button class="faq-q" onclick="toggleFAQ(this)">
+          Posso ter mais de um funcionário usando ao mesmo tempo?
+          <span class="faq-icon">+</span>
+        </button>
+        <div class="faq-a">
+          <div class="faq-a-inner">Sim. Você cadastra cada funcionário com login e senha próprios e define exatamente o que cada um pode acessar. O caixa só vê o PDV, o gerente vê tudo — você decide.</div>
+        </div>
+      </div>
+
+      <div class="faq-item fade-up">
+        <button class="faq-q" onclick="toggleFAQ(this)">
+          O sistema funciona no celular?
+          <span class="faq-icon">+</span>
+        </button>
+        <div class="faq-a">
+          <div class="faq-a-inner">Sim. A interface é responsiva e funciona em qualquer dispositivo com navegador. Para consultas rápidas, verificar relatórios ou acompanhar uma OS, o celular funciona muito bem.</div>
+        </div>
+      </div>
+
+      <div class="faq-item fade-up">
+        <button class="faq-q" onclick="toggleFAQ(this)">
+          E se eu precisar de ajuda para configurar?
+          <span class="faq-icon">+</span>
+        </button>
+        <div class="faq-a">
+          <div class="faq-a-inner">Suporte está incluído em todos os planos via WhatsApp. Nossa equipe te auxilia no cadastro inicial de produtos, configuração de usuários e qualquer dúvida operacional que surgir.</div>
+        </div>
+      </div>
+
+      <div class="faq-item fade-up">
+        <button class="faq-q" onclick="toggleFAQ(this)">
+          Posso cancelar quando quiser?
+          <span class="faq-icon">+</span>
+        </button>
+        <div class="faq-a">
+          <div class="faq-a-inner">Sim. Não há contrato mínimo de permanência. Se quiser cancelar, é só nos avisar. Recomendamos que antes exporte seus dados para ter o histórico guardado.</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════
+     CTA FINAL
+══════════════════════════════════════ -->
+<section id="cta-final">
+  <div class="container">
+    <div class="cta-box fade-up">
+      <div class="badge">Comece agora</div>
+      <h2 class="cta-title" style="margin-top:16px">
+        Pronto para organizar<br><span>a sua loja de vez?</span>
+      </h2>
+      <p class="cta-sub">Preencha o formulário e entraremos em contato para agendar uma demonstração gratuita.</p>
+      <div class="cta-actions">
+        <button class="btn btn-primary btn-xl" onclick="openForm()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+          Solicitar demonstração gratuita
+        </button>
+        <a href="#planos" class="btn btn-ghost btn-xl">Ver os planos</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════
+     FOOTER
+══════════════════════════════════════ -->
+<footer>
+  <div class="container">
+    <div class="footer-inner">
+      <div class="footer-brand">
+        <a href="#" class="nav-logo">
+          <div class="nav-logo-icon">🏪</div>
+          <div>
+            <div class="nav-logo-text">MinhaLoja</div>
+            <span class="nav-logo-sub">Sistema de Gestão</span>
+          </div>
+        </a>
+        <p>Sistema completo de gestão para pequenas e médias empresas. PDV, estoque, financeiro e muito mais em um só lugar.</p>
+      </div>
+      <div class="footer-col">
+        <h4>Sistema</h4>
+        <a href="#modulos">Módulos</a>
+        <a href="#como-funciona">Como funciona</a>
+        <a href="#planos">Planos e preços</a>
+        <a href="#faq">Perguntas frequentes</a>
+      </div>
+      <div class="footer-col">
+        <h4>Contato</h4>
+        <a href="#" onclick="openForm();return false">Fale conosco</a>
+        <a href="#para-quem">Para quem é</a>
+        <a href="#depoimentos">Depoimentos</a>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <span>© 2025 MinhaLoja. Todos os direitos reservados.</span>
+      <span>Desenvolvido com ♥ para quem tem loja</span>
+    </div>
+  </div>
+</footer>
+
+<!-- ══════════════════════════════════════
+     FLOATING CONTACT BUTTON
+══════════════════════════════════════ -->
+<button id="contact-float" onclick="openForm()">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+  <span>Fale conosco</span>
+</button>
+
+<!-- ══════════════════════════════════════
+     MODAL DE CONTATO
+══════════════════════════════════════ -->
+<div id="modal-overlay" onclick="handleOverlayClick(event)">
+  <div id="modal-box">
+    <div class="modal-header">
+      <div class="modal-title">Fale conosco</div>
+      <button class="modal-close" onclick="closeForm()">×</button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:13px;color:var(--text2);margin-bottom:18px">
+        Preencha o formulário e entraremos em contato em breve para agendar sua demonstração.
+      </p>
+      <div id="form-feedback" class="form-feedback"></div>
+      <form id="contact-form" onsubmit="submitForm(event)" novalidate>
+        <!-- Honeypot anti-bot (oculto) -->
+        <input type="text" name="website" id="hp-website" style="display:none" tabindex="-1" autocomplete="off">
+
+        <div class="fields-row">
+          <div class="field">
+            <label>Nome *</label>
+            <input type="text" id="f-nome" placeholder="Seu nome completo" required>
+          </div>
+          <div class="field">
+            <label>E-mail *</label>
+            <input type="email" id="f-email" placeholder="seu@email.com" required>
+          </div>
+        </div>
+        <div class="fields-row">
+          <div class="field">
+            <label>Telefone</label>
+            <input type="tel" id="f-telefone" placeholder="(00) 00000-0000">
+          </div>
+          <div class="field">
+            <label>Empresa</label>
+            <input type="text" id="f-empresa" placeholder="Nome da sua loja">
+          </div>
+        </div>
+        <div class="field">
+          <label>Plano de interesse</label>
+          <select id="f-plano">
+            <option value="">Ainda não sei</option>
+            <option value="Básico">Básico</option>
+            <option value="Profissional">Profissional</option>
+            <option value="Completo">Completo</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Mensagem</label>
+          <textarea id="f-mensagem" placeholder="Conte um pouco sobre sua empresa e o que precisa..."></textarea>
+        </div>
+        <button type="submit" class="btn-submit" id="btn-submit">Enviar mensagem</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════
+     SCRIPTS
+══════════════════════════════════════ -->
+<script>
+// ── Navbar scroll effect ─────────────────
+window.addEventListener('scroll', () => {
+  document.getElementById('navbar').classList.toggle('scrolled', window.scrollY > 40);
+}, {passive: true});
+
+// ── FAQ accordion ────────────────────────
+function toggleFAQ(btn) {
+  const item = btn.closest('.faq-item');
+  const isOpen = item.classList.contains('open');
+  document.querySelectorAll('.faq-item.open').forEach(i => i.classList.remove('open'));
+  if (!isOpen) item.classList.add('open');
+}
+
+// ── Scroll animations ────────────────────
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach(e => {
+    if (e.isIntersecting) {
+      e.target.classList.add('visible');
+      observer.unobserve(e.target);
+    }
+  });
+}, {threshold: 0.1, rootMargin: '0px 0px -40px 0px'});
+document.querySelectorAll('.fade-up').forEach(el => observer.observe(el));
+
+// ── Modal de contato ─────────────────────
+function openForm(plano) {
+  if (plano) document.getElementById('f-plano').value = plano;
+  document.getElementById('form-feedback').className = 'form-feedback';
+  document.getElementById('form-feedback').textContent = '';
+  document.getElementById('contact-form').reset();
+  if (plano) document.getElementById('f-plano').value = plano;
+  document.getElementById('modal-overlay').classList.add('open');
+  document.body.style.overflow = 'hidden';
+  setTimeout(() => document.getElementById('f-nome').focus(), 300);
+}
+
+function closeForm() {
+  document.getElementById('modal-overlay').classList.remove('open');
+  document.body.style.overflow = '';
+}
+
+function handleOverlayClick(e) {
+  if (e.target === document.getElementById('modal-overlay')) closeForm();
+}
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeForm();
+});
+
+async function submitForm(e) {
+  e.preventDefault();
+  const fb  = document.getElementById('form-feedback');
+  const btn = document.getElementById('btn-submit');
+
+  const nome  = document.getElementById('f-nome').value.trim();
+  const email = document.getElementById('f-email').value.trim();
+  if (!nome || !email) {
+    fb.textContent = 'Por favor, preencha nome e e-mail.';
+    fb.className = 'form-feedback error';
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = 'Enviando...';
+  fb.className = 'form-feedback';
+
+  try {
+    const payload = {
+      nome,
+      email,
+      telefone:         document.getElementById('f-telefone').value.trim(),
+      empresa:          document.getElementById('f-empresa').value.trim(),
+      plano_interesse:  document.getElementById('f-plano').value,
+      mensagem:         document.getElementById('f-mensagem').value.trim(),
+      website:          document.getElementById('hp-website').value, // honeypot
+    };
+
+    const r = await fetch(SA_API + '/api/contato', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const d = await r.json();
+
+    if (d.ok) {
+      fb.textContent = '✓ Mensagem enviada! Entraremos em contato em breve.';
+      fb.className = 'form-feedback success';
+      document.getElementById('contact-form').reset();
+      btn.textContent = 'Mensagem enviada!';
+      setTimeout(closeForm, 3000);
+    } else {
+      fb.textContent = d.message || 'Erro ao enviar. Tente novamente.';
+      fb.className = 'form-feedback error';
+      btn.disabled = false;
+      btn.textContent = 'Enviar mensagem';
+    }
+  } catch (err) {
+    fb.textContent = 'Erro de conexão. Verifique sua internet e tente novamente.';
+    fb.className = 'form-feedback error';
+    btn.disabled = false;
+    btn.textContent = 'Enviar mensagem';
+  }
+}
+</script>
+</body>
+</html>
