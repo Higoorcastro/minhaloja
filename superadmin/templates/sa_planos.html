@@ -21,15 +21,15 @@
 
 <!-- Modal Formulário -->
 <div id="modal-form" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 hidden items-center justify-center p-4 opacity-0 transition-opacity duration-300">
-    <div class="bg-white w-full max-w-md rounded-2xl shadow-2xl scale-95 transition-transform duration-300 transform" id="modal-content">
-        <div class="px-6 py-4 border-b border-slate-100 flex justify-between items-center">
+    <div class="bg-white w-full max-w-md rounded-2xl shadow-2xl scale-95 transition-transform duration-300 transform flex flex-col max-h-[90vh]" id="modal-content">
+        <div class="px-6 py-4 border-b border-slate-100 flex justify-between items-center shrink-0">
             <h3 class="text-lg font-semibold text-slate-800" id="modal-title">Novo Plano</h3>
             <button onclick="fecharModal()" class="text-slate-400 hover:text-slate-600 transition-colors p-1 rounded-md hover:bg-slate-100">
                 <i data-lucide="x" class="w-5 h-5"></i>
             </button>
         </div>
-        
-        <form id="form-plano" class="p-6 space-y-4" onsubmit="event.preventDefault(); salvarPlano();">
+
+        <form id="form-plano" class="p-6 space-y-4 overflow-y-auto flex-1" onsubmit="event.preventDefault(); salvarPlano();">
             <input type="hidden" id="plano_id">
             
             <div>
