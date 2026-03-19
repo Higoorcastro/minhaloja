@@ -1,4 +1,4 @@
-# MinhaLoja — Sistema de Gestão Comercial
+# LojaUp — Sistema de Gestão Comercial
 ## Documentação Técnica e Comercial Completa
 
 **Versão:** 1.0
@@ -10,7 +10,7 @@
 
 ## Visão Geral
 
-**MinhaLoja** é um sistema ERP (Enterprise Resource Planning) completo para pequenas e médias empresas, entregue como serviço SaaS (Software as a Service). A plataforma centraliza todas as operações comerciais — vendas, estoque, finanças, clientes, ordens de serviço e relatórios — em um único painel web moderno, acessível de qualquer dispositivo.
+**LojaUp** é um sistema ERP (Enterprise Resource Planning) completo para pequenas e médias empresas, entregue como serviço SaaS (Software as a Service). A plataforma centraliza todas as operações comerciais — vendas, estoque, finanças, clientes, ordens de serviço e relatórios — em um único painel web moderno, acessível de qualquer dispositivo.
 
 Construído com arquitetura **multi-tenant**, o sistema permite que múltiplas lojas compartilhem a mesma infraestrutura com isolamento total de dados, tornando-o ideal para revendedores, franquias e grupos empresariais.
 
@@ -18,7 +18,7 @@ Construído com arquitetura **multi-tenant**, o sistema permite que múltiplas l
 
 ## Proposta de Valor
 
-| Problema do Cliente | Solução MinhaLoja |
+| Problema do Cliente | Solução LojaUp |
 |---|---|
 | Controle de vendas em planilhas | PDV digital completo com histórico |
 | Desconhecimento do estoque real | Controle automático atualizado em tempo real |
@@ -511,7 +511,7 @@ O Super Admin pode criar planos com qualquer combinação de módulos:
 ```bash
 # 1. Clone o repositório
 git clone <repositório>
-cd minhaloja
+cd lojaup
 
 # 2. Configure as variáveis de ambiente
 cp .env.example .env
@@ -528,7 +528,7 @@ docker-compose up -d
 ### Variáveis de Ambiente
 
 ```env
-DB_URL=postgresql://postgres:SENHA@db:5432/minhaloja_db
+DB_URL=postgresql://postgres:SENHA@db:5432/lojaup_db
 SECRET_KEY=<64 chars hex>
 SESSION_COOKIE_SECURE=true  # Para produção com HTTPS
 GUNICORN_WORKERS=2
@@ -628,4 +628,4 @@ O sistema foi desenvolvido para ser facilmente extensível:
 
 ---
 
-*Documentação gerada para fins comerciais — MinhaLoja SaaS v1.0*
+*Documentação gerada para fins comerciais — LojaUp SaaS v1.0*

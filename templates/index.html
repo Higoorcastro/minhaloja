@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>MinhaLoja</title>
+  <title>LojaUp</title>
   <link rel="shortcut icon" href="{{ url_for('static', filename='img/favicon.ico') }}" type="image/x-icon">
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
@@ -2311,7 +2311,7 @@
       const config = await api('/api/config');
       if (config) {
         shopConfig = config;
-        document.getElementById('sidebar-shop-name').textContent = config.shop_name || 'MinhaLoja';
+        document.getElementById('sidebar-shop-name').textContent = config.shop_name || 'LojaUp';
         if (config.shop_logo) {
           const sidebarLogo = document.getElementById('sidebar-logo');
           if (sidebarLogo) sidebarLogo.src = config.shop_logo;

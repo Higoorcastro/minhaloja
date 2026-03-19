@@ -1638,7 +1638,7 @@ if __name__ == '__main__':
         sys.exit(0)
     
     port = int(os.environ.get('PORT', 5678))
-    print(f"🚀 GestãoLoja em http://localhost:{port}")
+    print(f"🚀 LojaUp em http://localhost:{port}")
     # Tenta rodar init_db uma vez antes de subir o dev server
     try:
         init_db()

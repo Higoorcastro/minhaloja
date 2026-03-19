@@ -154,7 +154,7 @@
       const config = await api('/api/config');
       if (config) {
         shopConfig = config;
-        document.getElementById('sidebar-shop-name').textContent = config.shop_name || 'MinhaLoja';
+        document.getElementById('sidebar-shop-name').textContent = config.shop_name || 'LojaUp';
         if (config.shop_logo) {
           const sidebarLogo = document.getElementById('sidebar-logo');
           if (sidebarLogo) sidebarLogo.src = config.shop_logo;

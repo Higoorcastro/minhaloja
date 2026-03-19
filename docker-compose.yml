@@ -3,7 +3,7 @@ version: '3.8'
 services:
   db:
     image: postgres:15-alpine
-    container_name: minhaloja_db
+    container_name: lojaup_db
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -12,7 +12,7 @@ services:
       - postgres_data:/var/lib/postgresql/data
     restart: unless-stopped
     networks:
-      - minhaloja_net
+      - lojaup_net
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 5s
@@ -21,7 +21,7 @@ services:
 
   app:
     build: .
-    container_name: minhaloja_app
+    container_name: lojaup_app
     environment:
       - APP_TYPE=loja
       - FLASK_DEBUG=0
@@ -37,11 +37,11 @@ services:
         condition: service_healthy
     restart: unless-stopped
     networks:
-      - minhaloja_net
+      - lojaup_net
 
   admin:
     build: .
-    container_name: minhaloja_admin
+    container_name: lojaup_admin
     environment:
       - APP_TYPE=admin
       - FLASK_DEBUG=0
@@ -57,11 +57,11 @@ services:
         condition: service_healthy
     restart: unless-stopped
     networks:
-      - minhaloja_net
+      - lojaup_net
 
   landing:
     image: nginx:alpine
-    container_name: minhaloja_landing
+    container_name: lojaup_landing
     volumes:
       - ./landing:/usr/share/nginx/html:ro
       - ./static/img:/usr/share/nginx/html/static/img:ro
@@ -69,11 +69,11 @@ services:
       - "5680:80"
     restart: unless-stopped
     networks:
-      - minhaloja_net
+      - lojaup_net
 
 volumes:
   postgres_data:
 
 networks:
-  minhaloja_net:
+  lojaup_net:
     driver: bridge

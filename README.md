@@ -1,4 +1,4 @@
-# 🏪 GestãoLoja — Sistema de Gestão Multi-Tenant v2.0 (PostgreSQL)
+# 🏪 LojaUp — Sistema de Gestão Multi-Tenant v2.0 (PostgreSQL)
 
 Sistema completo de gestão para pequenas e médias lojas, agora com arquitetura SaaS Multi-Tenant.
 
