@@ -15,7 +15,11 @@ from auth import require_superadmin
 
 load_dotenv()
 
-app = Flask(__name__)
+app = Flask(__name__, static_folder='../static')
+
+@app.route('/favicon.ico')
+def favicon():
+    return app.send_static_file('img/favicon.ico')
 _secret = os.environ.get('SECRET_KEY')
 if not _secret:
     raise RuntimeError('FATAL: SECRET_KEY environment variable not set. Refusing to start.')

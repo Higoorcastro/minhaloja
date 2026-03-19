@@ -436,6 +436,10 @@ def handle_exception(e):
         'traceback': tb if os.getenv('FLASK_ENV') == 'development' else None
     }), 500
 
+@app.route('/favicon.ico')
+def favicon():
+    return app.send_static_file('img/favicon.ico')
+
 # ── Helpers ────────────────────────────────────────────────────────────────
 def rows_to_list(rows):
     return [dict(r) for r in rows]
