@@ -15,10 +15,14 @@ echo -e "${BLUE}🚀 Subindo containers e compilando alterações...${NC}"
 docker compose up -d --build
 
 echo -e "${BLUE}📋 Aguardando banco de dados estabilizar...${NC}"
-sleep 5
+until docker exec lojaup_db pg_isready -U "${POSTGRES_USER:-postgres}" > /dev/null 2>&1; do
+  sleep 2
+done
 
-echo -e "${BLUE}⚙️ Executando script de inicialização do banco...${NC}"
-# Executa o init_db dentro do container da loja
+echo -e "${BLUE}⚙️ Inicializando banco do Super Admin...${NC}"
+docker exec -w /app/superadmin lojaup_admin python -c "from app import app, init_db; init_db()"
+
+echo -e "${BLUE}⚙️ Inicializando banco da Loja...${NC}"
 docker exec lojaup_app python app.py init
 
 echo -e "${GREEN}✅ Deploy finalizado com sucesso!${NC}"
