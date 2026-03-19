@@ -18,8 +18,10 @@
 <div id="grid-planos" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
     <div class="col-span-full py-12 text-center text-slate-500">Carregando planos...</div>
 </div>
+{% endblock %}
 
-<!-- Modal Formulário -->
+{% block scripts %}
+<!-- Modal fora do bloco content para evitar interferência do containing block -->
 <div id="modal-form" class="fixed inset-0 z-50 hidden" aria-modal="true" role="dialog">
     <!-- Overlay -->
     <div class="absolute inset-0 bg-slate-900/50 backdrop-blur-sm" onclick="fecharModal()"></div>
@@ -81,9 +83,7 @@
         </div>
     </div>
 </div>
-{% endblock %}
 
-{% block scripts %}
 <script>
     let planos = [];
     const MODULE_STRUCTURE = {
@@ -254,7 +254,7 @@
     function editar(p) {
         document.getElementById('plano_id').value = p.id;
         document.getElementById('nome').value = p.nome;
-        document.getElementById('preco_mensal').value = p.preco_mensal;
+        document.getElementById('valor').value = p.preco_mensal.toFixed(2);
         document.getElementById('max_usuarios').value = p.max_usuarios;
         document.getElementById('ativo').checked = p.ativo;
         document.getElementById('modal-title').textContent = 'Editar Plano';
@@ -267,10 +267,6 @@
 
         modal.classList.remove('hidden');
         modal.classList.add('flex');
-        setTimeout(() => {
-            modal.classList.remove('opacity-0');
-            modalContent.classList.remove('scale-95');
-        }, 10);
     }
 
     async function salvarPlano() {
@@ -288,7 +284,7 @@
 
         const d = {
             nome: document.getElementById('nome').value,
-            preco_mensal: parseFloat(document.getElementById('preco_mensal').value || 0),
+            preco_mensal: parseFloat(document.getElementById('valor').value || 0),
             max_usuarios: parseInt(document.getElementById('max_usuarios').value || 1),
             modulos: selectedModules,
             ativo: document.getElementById('ativo').checked
