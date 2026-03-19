@@ -36,32 +36,6 @@
   </div>
 </div>
 
-<!-- Modal detalhe -->
-<div id="modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
-  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg animate-enter">
-    <div class="flex items-center justify-between px-6 py-4 border-b border-slate-200">
-      <h3 class="font-semibold text-slate-800 text-base">Detalhes do Contato</h3>
-      <button onclick="closeModal()" class="text-slate-400 hover:text-slate-700 transition-colors">
-        <i data-lucide="x" class="w-5 h-5"></i>
-      </button>
-    </div>
-    <div id="modal-body" class="px-6 py-5 space-y-4 text-sm text-slate-700"></div>
-    <div class="px-6 pb-5 flex items-center justify-between gap-3">
-      <div class="flex gap-2">
-        <select id="modal-status" onchange="salvarStatus()" class="text-xs border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400">
-          <option value="NOVO">Novo</option>
-          <option value="CONTATADO">Contatado</option>
-          <option value="FECHADO">Fechado</option>
-          <option value="DESCARTADO">Descartado</option>
-        </select>
-      </div>
-      <button onclick="excluir()" class="text-xs px-4 py-2 bg-red-50 text-red-600 hover:bg-red-100 rounded-lg transition-colors font-medium">
-        Excluir
-      </button>
-    </div>
-  </div>
-</div>
-
 <style>
   .filtro-btn {
     padding: 6px 14px; border-radius: 9999px; font-size: 13px; font-weight: 500;
@@ -84,6 +58,45 @@
 {% endblock %}
 
 {% block scripts %}
+<!-- Modal fora do bloco content para evitar interferência do containing block -->
+<div id="modal" class="fixed inset-0 z-50 hidden" aria-modal="true" role="dialog">
+    <!-- Overlay -->
+    <div class="absolute inset-0 bg-slate-900/50 backdrop-blur-sm" onclick="closeModal()"></div>
+    
+    <!-- Caixa centralizada -->
+    <div class="relative flex items-center justify-center w-full h-full p-4 pointer-events-none">
+        <div id="modal-content" class="bg-white w-full max-w-lg rounded-2xl shadow-2xl pointer-events-auto flex flex-col" style="max-height: 90vh;">
+            <!-- Header -->
+            <div class="px-6 py-4 border-b border-slate-100 flex justify-between items-center shrink-0">
+                <h3 class="text-base font-semibold text-slate-800">Detalhes do Contato</h3>
+                <button onclick="closeModal()" class="text-slate-400 hover:text-slate-600 transition-colors p-1 rounded-md hover:bg-slate-100">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            <!-- Body com scroll -->
+            <div class="overflow-y-auto flex-1 p-6">
+                <div id="modal-body" class="space-y-4 text-sm text-slate-700"></div>
+                
+                <!-- Rodapé de Ações -->
+                <div class="mt-6 pt-6 border-t border-slate-100 flex items-center justify-between gap-3">
+                    <div class="flex gap-2">
+                        <select id="modal-status" onchange="salvarStatus()" class="text-xs border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400">
+                            <option value="NOVO">Novo</option>
+                            <option value="CONTATADO">Contatado</option>
+                            <option value="FECHADO">Fechado</option>
+                            <option value="DESCARTADO">Descartado</option>
+                        </select>
+                    </div>
+                    <button onclick="excluir()" class="text-xs px-4 py-2 bg-red-50 text-red-600 hover:bg-red-100 rounded-lg transition-colors font-medium">
+                        Excluir permanente
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
 let leads = [];
 let currentId = null;
