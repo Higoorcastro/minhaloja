@@ -1351,11 +1351,13 @@ async function atualizarOS(id) {
 // PRODUTOS
 // ══════════════════════════════════════════════════════════════
 function gerarCodigo() {
-  const code = Math.floor(1000000000 + Math.random() * 9000000000).toString();
+  const prefix = Math.random() < 0.5 ? '789' : '780';
+  const rest = Math.floor(Math.random() * 10000000000).toString().padStart(10, '0');
+  const code = prefix + rest;
   const input = document.getElementById('pf-cod');
   if (input) {
     input.value = code;
-    notify('Código gerado!', 'success');
+    notify('Código EAN-13 gerado!', 'success');
   }
 }
 
