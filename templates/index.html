@@ -70,6 +70,12 @@
           </svg>
           <span class="nav-label">Produtos</span>
         </div>
+        <div class="nav-item" onclick="navigate('categorias')" data-page="categorias">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+          </svg>
+          <span class="nav-label">Categorias</span>
+        </div>
         <div class="nav-item" onclick="navigate('clientes')" data-page="clientes">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
@@ -161,7 +167,7 @@
 
   <div id="notif"></div>
 
-  <script src="{{ url_for('static', filename='js/app-main.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/app-main.js') }}?v=1.1"></script>
 </body>
 
 </html>
