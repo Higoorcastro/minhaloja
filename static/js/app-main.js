@@ -574,16 +574,20 @@ async function deletarUsuario(id, nome) {
 // ══════════════════════════════════════════════════════════════
 // PDV
 // ══════════════════════════════════════════════════════════════
+let _pdvCategoria = '';
+
 async function renderPDV() {
   allProdutos = await api('/api/produtos') || [];
   allClientes = await api('/api/clientes') || [];
   allVendedores = await api('/api/vendedores') || [];
   window._allMaquininhas = await api('/api/maquininhas') || [];
+  _pdvCategoria = '';
   document.getElementById('topbar-actions').innerHTML = `<button class="topbar-btn" onclick="cart=[];renderCart()">🗑 Limpar</button>`;
   document.getElementById('content').innerHTML = `
   <div id="pdv-wrap">
     <div id="pdv-produtos">
-      <div id="pdv-search"><input type="text" id="pdv-q" placeholder="🔍 Buscar produto..." oninput="renderProdutosGrid()" style="width:100%"></div>
+      <div id="pdv-search"><input type="text" id="pdv-q" placeholder="🔍 Buscar produto ou código..." oninput="renderProdutosGrid()" style="width:100%"></div>
+      <div id="pdv-cats"></div>
       <div id="pdv-grid"></div>
     </div>
     <div id="pdv-sidebar">
@@ -597,12 +601,35 @@ async function renderPDV() {
       </div>
     </div>
   </div>`;
-  renderProdutosGrid(); renderCart();
+  renderCategoriasTab();
+  renderProdutosGrid();
+  renderCart();
+}
+
+function renderCategoriasTab() {
+  const cats = ['Todos', ...new Set(allProdutos.map(p => p.categoria_nome).filter(Boolean).sort())];
+  const el = document.getElementById('pdv-cats');
+  if (!el) return;
+  el.innerHTML = cats.map(c => `
+    <button class="pdv-cat-btn ${(c === 'Todos' ? _pdvCategoria === '' : _pdvCategoria === c) ? 'active' : ''}"
+      onclick="setPdvCategoria('${c === 'Todos' ? '' : c}')">${c}</button>
+  `).join('');
+}
+
+function setPdvCategoria(cat) {
+  _pdvCategoria = cat;
+  renderCategoriasTab();
+  renderProdutosGrid();
 }
 
 function renderProdutosGrid() {
   const q = (document.getElementById('pdv-q')?.value || '').toLowerCase();
-  const prods = allProdutos.filter(p => !q || p.nome.toLowerCase().includes(q) || (p.codigo || '').toLowerCase().includes(q));
+  let prods = allProdutos;
+  if (q) {
+    prods = prods.filter(p => p.nome.toLowerCase().includes(q) || (p.codigo || '').toLowerCase().includes(q));
+  } else if (_pdvCategoria) {
+    prods = prods.filter(p => p.categoria_nome === _pdvCategoria);
+  }
   const grid = document.getElementById('pdv-grid');
   if (!grid) return;
   if (!prods.length) { grid.innerHTML = '<div class="empty" style="grid-column:1/-1"><div class="empty-icon">📦</div><p>Nenhum produto encontrado</p></div>'; return; }

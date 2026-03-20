@@ -902,6 +902,38 @@ textarea {
   border-bottom: 1px solid var(--border)
 }
 
+#pdv-cats {
+  display: flex;
+  gap: 6px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+  background: var(--bg2)
+}
+
+.pdv-cat-btn {
+  padding: 5px 14px;
+  border-radius: 20px;
+  border: 1px solid var(--border);
+  background: var(--bg1);
+  color: var(--text2);
+  font-size: 0.8rem;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s, color 0.15s, border-color 0.15s
+}
+
+.pdv-cat-btn:hover {
+  background: var(--bg3);
+  color: var(--text1)
+}
+
+.pdv-cat-btn.active {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent)
+}
+
 #pdv-grid {
   flex: 1;
   overflow-y: auto;
