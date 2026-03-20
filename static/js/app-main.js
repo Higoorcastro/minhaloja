@@ -1346,13 +1346,25 @@ async function atualizarOS(id) {
 // ══════════════════════════════════════════════════════════════
 async function renderProdutos() {
   allCategorias = await api('/api/categorias') || [];
+  
+  // Build hierarchical category options for the filter
+  const pais = allCategorias.filter(c => !c.pai_id);
+  let catFilterOpts = '';
+  pais.forEach(pai => {
+    catFilterOpts += `<option value="${pai.id}">${pai.nome}</option>`;
+    const subs = allCategorias.filter(c => c.pai_id == pai.id);
+    subs.forEach(sub => {
+      catFilterOpts += `<option value="${sub.id}">&nbsp;&nbsp;&nbsp;↳ ${sub.nome}</option>`;
+    });
+  });
+
   document.getElementById('topbar-actions').innerHTML = `
         <button class="topbar-btn" onclick="renderCategorias()">📁 Categorias</button>
         <button class="topbar-btn primary" onclick="novoProduto()">+ Novo Produto</button>
       `;
   document.getElementById('content').innerHTML = `
     <div class="filters">
-      <div class="filter-group"><label>Categoria</label><select id="pf-cat"><option value="">Todas</option>${allCategorias.map(c => `<option value="${c.id}">${c.nome}</option>`).join('')}</select></div>
+      <div class="filter-group"><label>Categoria</label><select id="pf-cat"><option value="">Todas</option>${catFilterOpts}</select></div>
       <div class="filter-group"><label>Estoque</label><select id="pf-estq"><option value="">Todos</option><option value="baixo">Baixo (<= Min)</option><option value="zero">Zerado</option></select></div>
       <div class="filter-group"><label>Buscar</label><input type="text" id="pf-q" placeholder="Nome ou código..."></div>
       <div style="display:flex;align-items:flex-end"><button class="btn btn-primary" onclick="loadProdutos()">🔍 Filtrar</button></div>

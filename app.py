@@ -925,13 +925,37 @@ def api_categoria_delete(cid):
 @require_auth
 @require_module('produtos', 'pdv', 'vendas')
 def api_produtos_list():
-    db=get_db(); q=request.args.get('q',''); cat=request.args.get('categoria',''); baixo=request.args.get('estoque_baixo','')
-    tid=session['tenant_id']
-    sql="SELECT p.*,c.nome as categoria_nome FROM produtos p LEFT JOIN categorias c ON c.id=p.categoria_id WHERE p.tenant_id=? AND p.ativo=1"; params=[tid]
-    if q: sql+=" AND (p.nome LIKE ? OR p.codigo LIKE ?)"; params+=[f'%{q}%']*2
-    if cat: sql+=" AND p.categoria_id=?"; params.append(cat)
-    if baixo: sql+=" AND p.estoque<=p.estoque_minimo"
-    return jsonify(rows_to_list(db.execute(sql+' ORDER BY p.nome',params).fetchall()))
+    db = get_db()
+    q = request.args.get('q', '').strip()
+    cat_id = request.args.get('categoria_id', '') # Frontend sends categoria_id
+    estoque = request.args.get('estoque', '')      # Frontend sends estoque (baixo or zero)
+    tid = session['tenant_id']
+    
+    sql = "SELECT p.*, c.nome as categoria_nome FROM produtos p LEFT JOIN categorias c ON c.id = p.categoria_id WHERE p.tenant_id = ? AND p.ativo = 1"
+    params = [tid]
+    
+    if q:
+        sql += " AND (p.nome ILIKE ? OR p.codigo ILIKE ?)" # Use ILIKE for case-insensitive Postgres search
+        params += [f'%{q}%'] * 2
+        
+    if cat_id:
+        # Recursive CTE to include all subcategories
+        sql += """ AND p.categoria_id IN (
+            WITH RECURSIVE subcats AS (
+                SELECT id FROM categorias WHERE id = ?
+                UNION ALL
+                SELECT c.id FROM categorias c INNER JOIN subcats s ON s.id = c.pai_id
+            )
+            SELECT id FROM subcats
+        )"""
+        params.append(cat_id)
+        
+    if estoque == 'baixo':
+        sql += " AND p.estoque <= p.estoque_minimo"
+    elif estoque == 'zero':
+        sql += " AND p.estoque <= 0"
+        
+    return jsonify(rows_to_list(db.execute(sql + ' ORDER BY p.nome', params).fetchall()))
 
 @app.route('/api/produtos', methods=['POST'])
 @require_auth
