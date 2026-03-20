@@ -333,6 +333,16 @@ def init_db():
         # Migração: adiciona coluna pai_id se não existir para subcategorias
         cur.execute("ALTER TABLE categorias ADD COLUMN IF NOT EXISTS pai_id INTEGER REFERENCES categorias(id) ON DELETE CASCADE;")
 
+        # Migração: ajusta unicidade das categorias (tenant_id, pai_id, nome)
+        try:
+            # Remove a constraint antiga de nome global no tenant
+            cur.execute("ALTER TABLE categorias DROP CONSTRAINT IF EXISTS categorias_tenant_id_nome_key;")
+            # Adiciona a nova que considera o pai
+            cur.execute("ALTER TABLE categorias ADD CONSTRAINT categorias_tenant_id_pai_id_nome_key UNIQUE (tenant_id, pai_id, nome);")
+        except Exception as e:
+            if 'already exists' not in str(e).lower():
+                print(f"⚠️ Aviso na migração de categorias: {e}")
+
         # Migração: adiciona coluna permissoes se não existir
         cur.execute("ALTER TABLE tenant_usuarios ADD COLUMN IF NOT EXISTS permissoes TEXT DEFAULT '';")
         

@@ -273,12 +273,18 @@ async function navigate(page) {
     _showProgress(60);
 
     const renderer = {
-      dashboard: renderDashboard, pdv: renderPDV, vendas: renderVendas, os: renderOS,
-      produtos: renderProdutos, categorias: renderCategorias, clientes: renderClientes, 
-      financeiro: renderFinanceiro, receber: renderFinanceiro,
-      relatorios: renderRelatorios,
+      dashboard: () => renderDashboard(), 
+      pdv: () => renderPDV(), 
+      vendas: () => renderVendas(), 
+      os: () => renderOS(),
+      produtos: () => renderProdutos(), 
+      categorias: () => renderCategorias(), 
+      clientes: () => renderClientes(), 
+      financeiro: () => renderFinanceiro(), 
+      receber: () => renderFinanceiro(),
+      relatorios: () => renderRelatorios(),
       usuarios: async () => { await renderSettings(); switchSettingsTab('usuarios'); },
-      settings: renderSettings
+      settings: () => renderSettings()
     }[page];
 
     if (renderer) {
