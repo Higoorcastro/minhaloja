@@ -1426,12 +1426,13 @@ async function loadProdutos() {
   allProdutos = data;
   const tbl = document.getElementById('prod-tbl');
   if (!data.length) { tbl.innerHTML = '<div class="empty"><div class="empty-icon">📦</div><p>Nenhum produto</p></div>'; return; }
-  tbl.innerHTML = `<table><thead><tr><th>Código</th><th>Nome</th><th>Categoria</th><th>Estoque</th><th>Custo</th><th>Venda</th><th>Lucro</th><th></th></tr></thead>
+  tbl.innerHTML = `<table><thead><tr><th>Código</th><th>Nome</th><th>Categoria</th><th>Sub-categoria</th><th>Estoque</th><th>Custo</th><th>Venda</th><th>Lucro</th><th></th></tr></thead>
   <tbody>${data.map(p => {
     const lucro = (p.preco_venda - p.preco_custo);
     const margem = p.preco_custo > 0 ? (lucro / p.preco_custo * 100).toFixed(1) : '---';
     const stClass = p.estoque <= 0 ? 'text-red fw7' : (p.estoque <= p.estoque_minimo ? 'text-orange fw7' : '');
-    return `<tr><td class="mono">${p.codigo || '-'}</td><td>${p.nome}</td><td>${p.categoria_nome || '-'}</td><td class="${stClass}">${p.estoque} ${p.unidade}</td><td class="mono">${fmt(p.preco_custo)}</td><td class="mono fw7 text-blue">${fmt(p.preco_venda)}</td><td class="mono text-green">${fmt(lucro)} <small>(${margem}%)</small></td>
+    const subcat = (p.subcategoria_nome && p.subcategoria_nome !== p.categoria_nome) ? p.subcategoria_nome : '-';
+    return `<tr><td class="mono">${p.codigo || '-'}</td><td>${p.nome}</td><td>${p.categoria_nome || '-'}</td><td>${subcat}</td><td class="${stClass}">${p.estoque} ${p.unidade}</td><td class="mono">${fmt(p.preco_custo)}</td><td class="mono fw7 text-blue">${fmt(p.preco_venda)}</td><td class="mono text-green">${fmt(lucro)} <small>(${margem}%)</small></td>
   <td style="display:flex;gap:4px"><button class="btn btn-sm" onclick="editarProduto(${p.id})">Editar</button><button class="btn btn-sm btn-danger" onclick="deletarProduto(${p.id})">🗑️</button></td></tr>`;
   }).join('')}</tbody></table>`;
 }

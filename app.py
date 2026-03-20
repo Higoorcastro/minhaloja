@@ -941,7 +941,13 @@ def api_produtos_list():
     estoque = request.args.get('estoque', '')      # Frontend sends estoque (baixo or zero)
     tid = session['tenant_id']
     
-    sql = "SELECT p.*, c.nome as categoria_nome FROM produtos p LEFT JOIN categorias c ON c.id = p.categoria_id WHERE p.tenant_id = ? AND p.ativo = 1"
+    sql = """SELECT p.*,
+        COALESCE(cpai.nome, c.nome) as categoria_nome,
+        c.nome as subcategoria_nome
+        FROM produtos p
+        LEFT JOIN categorias c ON c.id = p.categoria_id
+        LEFT JOIN categorias cpai ON cpai.id = c.pai_id
+        WHERE p.tenant_id = ? AND p.ativo = 1"""
     params = [tid]
     
     if q:
@@ -1672,7 +1678,7 @@ def rel_financeiro():
 @require_module('relatorios')
 def rel_estoque():
     db=get_db(); tid=session['tenant_id']
-    rows=db.execute("SELECT p.*,c.nome as categoria_nome,(p.estoque*p.preco_custo) as valor_estoque FROM produtos p LEFT JOIN categorias c ON c.id=p.categoria_id WHERE p.tenant_id=? AND p.ativo=1 ORDER BY p.nome", (tid,)).fetchall()
+    rows=db.execute("SELECT p.*, COALESCE(cpai.nome,c.nome) as categoria_nome, (p.estoque*p.preco_custo) as valor_estoque FROM produtos p LEFT JOIN categorias c ON c.id=p.categoria_id LEFT JOIN categorias cpai ON cpai.id=c.pai_id WHERE p.tenant_id=? AND p.ativo=1 ORDER BY p.nome", (tid,)).fetchall()
     total_val=sum(r['valor_estoque'] or 0 for r in rows)
     return jsonify({'produtos':rows_to_list(rows),'valor_total_estoque':total_val,'produtos_estoque_baixo':[dict(r) for r in rows if r['estoque']<=r['estoque_minimo']]})
 
