@@ -134,6 +134,7 @@ def init_db():
             id SERIAL PRIMARY KEY,
             tenant_id INTEGER REFERENCES tenants(id) ON DELETE CASCADE,
             nome TEXT NOT NULL,
+            pai_id INTEGER REFERENCES categorias(id) ON DELETE CASCADE,
             UNIQUE(tenant_id, nome)
         );
         CREATE TABLE IF NOT EXISTS produtos (
@@ -328,6 +329,9 @@ def init_db():
             criado_em TIMESTAMP DEFAULT NOW()
         );
         """)
+
+        # Migração: adiciona coluna pai_id se não existir para subcategorias
+        cur.execute("ALTER TABLE categorias ADD COLUMN IF NOT EXISTS pai_id INTEGER REFERENCES categorias(id) ON DELETE CASCADE;")
 
         # Migração: adiciona coluna permissoes se não existir
         cur.execute("ALTER TABLE tenant_usuarios ADD COLUMN IF NOT EXISTS permissoes TEXT DEFAULT '';")
@@ -851,11 +855,68 @@ def api_dashboard():
 # ══════════════════════════════════════════════════════════════════════════
 # API – Categorias
 # ══════════════════════════════════════════════════════════════════════════
-@app.route('/api/categorias')
+@app.route('/api/categorias', methods=['GET'])
 @require_auth
-def api_categorias():
+def api_categorias_list():
     tid = session['tenant_id']
-    return jsonify(rows_to_list(get_db().execute("SELECT * FROM categorias WHERE tenant_id=? ORDER BY nome", (tid,)).fetchall()))
+    rows = get_db().execute("SELECT c1.*, c2.nome as pai_nome FROM categorias c1 LEFT JOIN categorias c2 ON c2.id = c1.pai_id WHERE c1.tenant_id=? ORDER BY c1.nome", (tid,)).fetchall()
+    return jsonify(rows_to_list(rows))
+
+@app.route('/api/categorias', methods=['POST'])
+@require_auth
+@require_module('produtos')
+def api_categoria_create():
+    db = get_db(); d = request.json; tid = session['tenant_id']
+    nome = d.get('nome', '').strip()
+    if not nome:
+        return jsonify({'ok': False, 'message': 'Nome da categoria é obrigatório'}), 400
+    
+    pai_id = d.get('pai_id')
+    if pai_id == '': pai_id = None
+    
+    try:
+        db.execute("INSERT INTO categorias (tenant_id, nome, pai_id) VALUES (?, ?, ?)", (tid, nome, pai_id))
+        db.commit()
+        return jsonify({'ok': True})
+    except Exception as e:
+        if 'unique' in str(e).lower():
+            return jsonify({'ok': False, 'message': 'Já existe uma categoria com este nome'}), 400
+        raise e
+
+@app.route('/api/categorias/<int:cid>', methods=['PUT'])
+@require_auth
+@require_module('produtos')
+def api_categoria_update(cid):
+    db = get_db(); d = request.json; tid = session['tenant_id']
+    nome = d.get('nome', '').strip()
+    if not nome:
+        return jsonify({'ok': False, 'message': 'Nome da categoria é obrigatório'}), 400
+    
+    pai_id = d.get('pai_id')
+    if pai_id == '' or pai_id == cid: pai_id = None
+    
+    try:
+        db.execute("UPDATE categorias SET nome=?, pai_id=? WHERE tenant_id=? AND id=?", (nome, pai_id, tid, cid))
+        db.commit()
+        return jsonify({'ok': True})
+    except Exception as e:
+        if 'unique' in str(e).lower():
+            return jsonify({'ok': False, 'message': 'Já existe uma categoria com este nome'}), 400
+        raise e
+
+@app.route('/api/categorias/<int:cid>', methods=['DELETE'])
+@require_auth
+@require_module('produtos')
+def api_categoria_delete(cid):
+    db = get_db(); tid = session['tenant_id']
+    # Verifica se há produtos usando esta categoria
+    uso = db.execute("SELECT COUNT(*) as c FROM produtos WHERE tenant_id=? AND categoria_id=?", (tid, cid)).fetchone()['c']
+    if uso > 0:
+        return jsonify({'ok': False, 'message': f'Não é possível excluir: existem {uso} produtos vinculados a esta categoria'}), 400
+    
+    db.execute("DELETE FROM categorias WHERE tenant_id=? AND id=?", (tid, cid))
+    db.commit()
+    return jsonify({'ok': True})
 
 # ══════════════════════════════════════════════════════════════════════════
 # API – Produtos
