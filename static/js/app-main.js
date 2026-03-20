@@ -1350,6 +1350,15 @@ async function atualizarOS(id) {
 // ══════════════════════════════════════════════════════════════
 // PRODUTOS
 // ══════════════════════════════════════════════════════════════
+function gerarCodigo() {
+  const code = Math.floor(1000000000 + Math.random() * 9000000000).toString();
+  const input = document.getElementById('pf-cod');
+  if (input) {
+    input.value = code;
+    notify('Código gerado!', 'success');
+  }
+}
+
 async function renderProdutos() {
   allCategorias = await api('/api/categorias') || [];
   
@@ -1409,30 +1418,42 @@ function buildProdForm(p) {
     });
   });
   // Adiciona órfãs (caso existam por algum erro de integridade ou lógica)
-  allCategorias.filter(c => c.pai_id && !allCategorias.find(p => p.id == c.pai_id)).forEach(c => {
+  allCategorias.filter(c => c.pai_id && !allCategorias.find(pd => pd.id == c.pai_id)).forEach(c => {
     catOpts += `<option value="${c.id}" ${p && p.categoria_id == c.id ? 'selected' : ''}>${c.nome} (S/ Pai)</option>`;
   });
 
   return `
     <div class="form-grid">
       <div class="form-group full"><label>Nome do Produto *</label><input id="pf-nome" value="${p?.nome || ''}" placeholder="Ex: Película 3D iPhone 13"></div>
-      <div class="form-group"><label>Código / SKU</label><input id="pf-cod" value="${p?.codigo || ''}" placeholder="OPCIONAL"></div>
+      <div class="form-group">
+        <label>Código / SKU</label>
+        <div style="display:flex;gap:4px">
+          <input id="pf-cod" value="${p?.codigo || ''}" placeholder="OPCIONAL" style="flex:1">
+          <button type="button" class="btn btn-sm" onclick="gerarCodigo()" title="Gerar Código Aleatório">⚡</button>
+        </div>
+      </div>
       <div class="form-group"><label>Categoria</label><select id="pf-cat-id"><option value="">— Sem Categoria —</option>${catOpts}</select></div>
       <div class="form-group"><label>Preço Custo</label><input id="pf-pc" value="${p ? fmtN(p.preco_custo) : '0,00'}" oninput="this.value=maskMoney(this.value)"></div>
       <div class="form-group"><label>Preço Venda *</label><input id="pf-pv" value="${p ? fmtN(p.preco_venda) : '0,00'}" oninput="this.value=maskMoney(this.value)"></div>
       <div class="form-group"><label>Estoque Atual</label><input type="number" id="pf-est" value="${p?.estoque || 0}"></div>
       <div class="form-group"><label>Estoque Mínimo</label><input type="number" id="pf-min" value="${p?.estoque_minimo || 0}"></div>
       <div class="form-group"><label>Unidade</label><input id="pf-uni" value="${p?.unidade || 'un'}" placeholder="Ex: un, par, m"></div>
+      <div class="form-group full"><label>URL da Imagem</label><input id="pf-img" value="${p?.imagem_url || ''}" placeholder="http://..."></div>
     </div>`;
 }
 async function novoProduto() { openModal('Novo Produto', buildProdForm(), `<button class="btn" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="salvarProduto()">Criar</button>`); }
 async function editarProduto(id) { const p = allProdutos.find(x => x.id === id); openModal('Editar Produto', buildProdForm(p), `<button class="btn" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="salvarProduto(${id})">Salvar</button>`); }
 async function salvarProduto(id = null) {
   const body = {
-    nome: document.getElementById('pf-nome').value, codigo: document.getElementById('pf-cod').value,
-    categoria_id: document.getElementById('pf-cat-id').value || null, preco_custo: parseMoney(document.getElementById('pf-pc').value),
-    preco_venda: parseMoney(document.getElementById('pf-pv').value), estoque: parseFloat(document.getElementById('pf-est').value || 0),
-    estoque_minimo: parseFloat(document.getElementById('pf-min').value || 0), unidade: document.getElementById('pf-uni').value
+    nome: document.getElementById('pf-nome').value, 
+    codigo: document.getElementById('pf-cod').value,
+    categoria_id: document.getElementById('pf-cat-id').value || null, 
+    preco_custo: parseMoney(document.getElementById('pf-pc').value),
+    preco_venda: parseMoney(document.getElementById('pf-pv').value), 
+    estoque: parseFloat(document.getElementById('pf-est').value || 0),
+    estoque_minimo: parseFloat(document.getElementById('pf-min').value || 0), 
+    unidade: document.getElementById('pf-uni').value,
+    imagem_url: document.getElementById('pf-img')?.value || null
   };
   if (!body.nome || !body.preco_venda) { notify('Nome e Preço de Venda são obrigatórios', 'error'); return; }
   const r = id ? await api(`/api/produtos/${id}`, 'PUT', body) : await api('/api/produtos', 'POST', body);
