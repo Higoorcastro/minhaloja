@@ -1429,7 +1429,7 @@ function buildProdForm(p) {
         <label>Código / SKU</label>
         <div style="display:flex;gap:4px">
           <input id="pf-cod" value="${p?.codigo || ''}" placeholder="OPCIONAL" style="flex:1">
-          <button type="button" class="btn btn-sm" onclick="gerarCodigo()" title="Gerar Código Aleatório">⚡</button>
+          <button type="button" class="btn btn-sm" onclick="gerarCodigo()" title="Gerar Código Aleatório">GERAR</button>
         </div>
       </div>
       <div class="form-group"><label>Categoria</label><select id="pf-cat-id"><option value="">— Sem Categoria —</option>${catOpts}</select></div>
