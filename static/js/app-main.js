@@ -1437,20 +1437,21 @@ async function loadProdutos() {
 }
 
 function buildProdForm(p) {
-  // Agrupa categorias e subcategorias para o select
-  const pais = allCategorias.filter(c => !c.pai_id);
-  let catOpts = '';
-  pais.forEach(pai => {
-    catOpts += `<option value="${pai.id}" ${p && p.categoria_id == pai.id ? 'selected' : ''}>${pai.nome}</option>`;
-    const subs = allCategorias.filter(c => c.pai_id == pai.id);
-    subs.forEach(sub => {
-      catOpts += `<option value="${sub.id}" ${p && p.categoria_id == sub.id ? 'selected' : ''}>&nbsp;&nbsp;&nbsp;↳ ${sub.nome}</option>`;
-    });
-  });
-  // Adiciona órfãs (caso existam por algum erro de integridade ou lógica)
-  allCategorias.filter(c => c.pai_id && !allCategorias.find(pd => pd.id == c.pai_id)).forEach(c => {
-    catOpts += `<option value="${c.id}" ${p && p.categoria_id == c.id ? 'selected' : ''}>${c.nome} (S/ Pai)</option>`;
-  });
+  // Separa categorias pai e filho para os dois selects encadeados
+  const pais = allCategorias.filter(c => !c.pai_id).sort((a,b) => a.nome.localeCompare(b.nome));
+
+  let selectedPai = '', selectedSub = '';
+  if (p && p.categoria_id) {
+    const cat = allCategorias.find(c => c.id == p.categoria_id);
+    if (cat) {
+      if (cat.pai_id) { selectedPai = cat.pai_id; selectedSub = cat.id; }
+      else { selectedPai = cat.id; }
+    }
+  }
+
+  const paiOpts = pais.map(c => `<option value="${c.id}" ${c.id == selectedPai ? 'selected' : ''}>${c.nome}</option>`).join('');
+  const subsInit = selectedPai ? allCategorias.filter(c => c.pai_id == selectedPai).sort((a,b) => a.nome.localeCompare(b.nome)) : [];
+  const subOpts = subsInit.map(c => `<option value="${c.id}" ${c.id == selectedSub ? 'selected' : ''}>${c.nome}</option>`).join('');
 
   return `
     <div class="form-grid">
@@ -1462,7 +1463,8 @@ function buildProdForm(p) {
           <button type="button" class="btn btn-sm" onclick="gerarCodigo()" title="Gerar Código Aleatório">GERAR</button>
         </div>
       </div>
-      <div class="form-group"><label>Categoria</label><select id="pf-cat-id"><option value="">— Sem Categoria —</option>${catOpts}</select></div>
+      <div class="form-group"><label>Categoria</label><select id="pf-cat-pai" onchange="updateSubcatOpts()"><option value="">— Sem Categoria —</option>${paiOpts}</select></div>
+      <div class="form-group"><label>Sub-categoria</label><select id="pf-cat-sub"><option value="">— Nenhuma —</option>${subOpts}</select></div>
       <div class="form-group"><label>Preço Custo</label><input id="pf-pc" value="${p ? fmtN(p.preco_custo) : '0,00'}" oninput="this.value=maskMoney(this.value)"></div>
       <div class="form-group"><label>Preço Venda *</label><input id="pf-pv" value="${p ? fmtN(p.preco_venda) : '0,00'}" oninput="this.value=maskMoney(this.value)"></div>
       <div class="form-group"><label>Estoque Atual</label><input type="number" id="pf-est" value="${p?.estoque || 0}"></div>
@@ -1482,13 +1484,19 @@ function buildProdForm(p) {
       <div class="form-group full"><label>URL da Imagem</label><input id="pf-img" value="${p?.imagem_url || ''}" placeholder="http://..."></div>
     </div>`;
 }
+function updateSubcatOpts() {
+  const paiId = document.getElementById('pf-cat-pai').value;
+  const subSel = document.getElementById('pf-cat-sub');
+  const subs = paiId ? allCategorias.filter(c => c.pai_id == paiId).sort((a,b) => a.nome.localeCompare(b.nome)) : [];
+  subSel.innerHTML = '<option value="">— Nenhuma —</option>' + subs.map(c => `<option value="${c.id}">${c.nome}</option>`).join('');
+}
 async function novoProduto() { openModal('Novo Produto', buildProdForm(), `<button class="btn" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="salvarProduto()">Criar</button>`); }
 async function editarProduto(id) { const p = allProdutos.find(x => x.id === id); openModal('Editar Produto', buildProdForm(p), `<button class="btn" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="salvarProduto(${id})">Salvar</button>`); }
 async function salvarProduto(id = null) {
   const body = {
     nome: document.getElementById('pf-nome').value, 
     codigo: document.getElementById('pf-cod').value,
-    categoria_id: document.getElementById('pf-cat-id').value || null, 
+    categoria_id: document.getElementById('pf-cat-sub')?.value || document.getElementById('pf-cat-pai')?.value || null,
     preco_custo: parseMoney(document.getElementById('pf-pc').value),
     preco_venda: parseMoney(document.getElementById('pf-pv').value), 
     estoque: parseFloat(document.getElementById('pf-est').value || 0),
