@@ -1439,7 +1439,18 @@ function buildProdForm(p) {
       <div class="form-group"><label>Preço Venda *</label><input id="pf-pv" value="${p ? fmtN(p.preco_venda) : '0,00'}" oninput="this.value=maskMoney(this.value)"></div>
       <div class="form-group"><label>Estoque Atual</label><input type="number" id="pf-est" value="${p?.estoque || 0}"></div>
       <div class="form-group"><label>Estoque Mínimo</label><input type="number" id="pf-min" value="${p?.estoque_minimo || 0}"></div>
-      <div class="form-group"><label>Unidade</label><input id="pf-uni" value="${p?.unidade || 'un'}" placeholder="Ex: un, par, m"></div>
+      <div class="form-group">
+        <label>Unidade</label>
+        <select id="pf-uni">
+          <option value="un" ${p?.unidade === 'un' ? 'selected' : ''}>UN (Unidade)</option>
+          <option value="kg" ${p?.unidade === 'kg' ? 'selected' : ''}>KG (Quilograma)</option>
+          <option value="g" ${p?.unidade === 'g' ? 'selected' : ''}>G (Grama)</option>
+          <option value="m" ${p?.unidade === 'm' ? 'selected' : ''}>M (Metro)</option>
+          <option value="l" ${p?.unidade === 'l' ? 'selected' : ''}>L (Litro)</option>
+          <option value="par" ${p?.unidade === 'par' ? 'selected' : ''}>PAR (Par)</option>
+          <option value="kit" ${p?.unidade === 'kit' ? 'selected' : ''}>KIT (Kit)</option>
+        </select>
+      </div>
       <div class="form-group full"><label>URL da Imagem</label><input id="pf-img" value="${p?.imagem_url || ''}" placeholder="http://..."></div>
     </div>`;
 }
