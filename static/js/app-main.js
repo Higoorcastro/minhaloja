@@ -647,13 +647,17 @@ function renderProdutosGrid() {
 
   grid.innerHTML = prods.map(p => {
     const stockClass = p.estoque <= 0 ? 'stock-none' : (p.estoque <= p.estoque_minimo ? 'stock-low' : 'stock-ok');
+    const nomeSafe = (p.nome || '').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    // Quando filtrado por categoria pai, mostra a sub-categoria no badge (informação adicional)
+    // Quando em "Todos", mostra a categoria pai
+    const badgeLabel = _pdvCategoria && p.subcategoria_nome ? p.subcategoria_nome : p.categoria_nome;
     return `
         <div class="produto-card ${p.estoque <= 0 ? 'sem-estoque' : ''}" onclick="addToCart(${p.id})">
           <div class="pc-top">
             <div class="emoji">${getIcon(p.categoria_nome)}</div>
-            ${p.categoria_nome ? `<div class="pc-category">${p.categoria_nome}</div>` : ''}
+            ${badgeLabel ? `<div class="pc-category">${badgeLabel}</div>` : ''}
           </div>
-          <div class="pc-nome" title="${p.nome}">${p.nome}</div>
+          <div class="pc-nome" title="${nomeSafe}">${p.nome || '—'}</div>
           <div class="pc-details">
             <div class="pc-preco">${fmt(p.preco_venda)}</div>
             <div class="pc-estq-wrap">
